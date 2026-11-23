@@ -92,6 +92,12 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
       <div class="tips" id="tips"></div>
     </div>
 
+    <div class="card" id="setsCard">
+      <h2 style="font-size:15px;margin-bottom:8px">سيتات إضافية لموبايلك</h2>
+      <div class="note" style="text-align:right">الأدمن بينزل سيتات جديدة كل يوم — جرّبهم في التدريب وثبّت اللي يظبط معاك.</div>
+      <div id="setsList"></div>
+    </div>
+
     <div class="card">
       <h2 style="font-size:15px;margin-bottom:8px">إعدادات التحكم (Controls & HUD)</h2>
       <div id="controls"></div>
@@ -100,12 +106,6 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
     <div class="card">
       <h2 style="font-size:15px;margin-bottom:8px">التصويب حسب نوع السلاح</h2>
       <div id="weapons"></div>
-    </div>
-
-    <div class="card">
-      <h2 style="font-size:15px">دوّر على موبايل تاني</h2>
-      <input id="q" placeholder="اكتب الموديل... مثال: Redmi Note 13">
-      <button class="ghost" onclick="lookup()">عرض الإعدادات</button>
     </div>
 
     <button class="ghost" onclick="doLogout()">تسجيل خروج</button>
@@ -154,7 +154,7 @@ async function doLogout(){
   token=''; localStorage.removeItem('ff_token'); show('loginView');
 }
 async function lookup(model){
-  const m = model || document.getElementById('q').value.trim();
+  const m = model || '';
   if(!m) return;
   const r = await api('/api/device?model='+encodeURIComponent(m));
   if(r.status===403){ show('blockedView'); return; }
@@ -181,6 +181,20 @@ function render(d){
   const rows = (arr) => (arr||[]).map(c => '<div class="krow"><div style="flex:1"><div class="k">'+c.k+'</div>'+(c.d||c.why?'<div class="d">'+(c.d||c.why)+'</div>':'')+'</div><div class="v">'+c.v+'</div></div>').join('');
   document.getElementById('controls').innerHTML = rows(dev.controls);
   document.getElementById('weapons').innerHTML = rows(dev.weapons);
+  const extra = (d.sets || []).slice(1);
+  const lbl = [['general','الحساسية العامة'],['redDot','ريد دوت'],['scope2x','سكوب 2x'],['scope4x','سكوب 4x'],['sniper','سنايبر'],['freeLook','النظرة الحرة']];
+  document.getElementById('setsList').innerHTML = extra.length ? extra.map(function(st){
+    return '<div style="background:var(--card2);border:1px solid #232c47;border-radius:12px;padding:12px;margin-top:12px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--acc2)">'+st.name+'</b>' +
+      '<span class="badge">'+(st.dpi ? 'DPI '+st.dpi : 'DPI زي الأساسي')+'</span></div>' +
+      (st.note ? '<div class="note" style="text-align:right;margin-top:6px">'+st.note+'</div>' : '') +
+      '<div class="grid">' + lbl.map(function(x){ return '<div class="stat"><div class="v">'+st.sens[x[0]]+'</div><div class="k">'+x[1]+'</div></div>'; }).join('') + '</div></div>';
+  }).join('') : '<div class="note" style="margin-top:10px">لسه مفيش سيتات إضافية لموبايلك — أول ما ينزل جديد هيوصلك إشعار.</div>';
+  try{
+    if(window.AndroidBridge){
+      AndroidBridge.registerForUpdates(token, d.key || 'generic', String(d.setsUpdatedAt || 0));
+    }
+  }catch(e){}
 }
 async function boot(){
   if(!token){ show('loginView'); return; }

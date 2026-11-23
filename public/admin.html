@@ -76,10 +76,49 @@ th{color:var(--mut);font-weight:600}
       </table>
       </div>
     </div>
+
+    <div class="card">
+      <h2 style="font-size:16px">سيتات الموديلات (بتنزل كل يوم)</h2>
+      <div class="row">
+        <select id="smodel" style="min-width:240px" onchange="loadSets()"></select>
+        <button class="ghost" onclick="loadModels()">تحديث القائمة</button>
+      </div>
+      <div id="setsRows"></div>
+      <h3 style="font-size:14px;margin-top:14px" id="setFormTitle">إضافة سيت جديد</h3>
+      <input type="hidden" id="sid">
+      <div class="row">
+        <input id="sname" placeholder="اسم السيت (فاضي = تلقائي)">
+        <input id="snote" placeholder="ملاحظة للعميل (اختياري)" style="min-width:200px">
+      </div>
+      <div class="row">
+        <input id="sg" type="number" placeholder="عامة" style="width:80px">
+        <input id="sr" type="number" placeholder="ريد دوت" style="width:80px">
+        <input id="s2" type="number" placeholder="2x" style="width:70px">
+        <input id="s4" type="number" placeholder="4x" style="width:70px">
+        <input id="ss" type="number" placeholder="سنايبر" style="width:80px">
+        <input id="sf" type="number" placeholder="نظرة حرة" style="width:90px">
+        <input id="sd" type="number" placeholder="DPI (اختياري)" style="width:110px">
+      </div>
+      <div class="row">
+        <button onclick="saveSet()">حفظ السيت</button>
+        <button class="ghost" onclick="clearSetForm()">تفضية</button>
+      </div>
+      <div class="err" id="setErr"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:16px">نص إشعار التحديث اليومي</h2>
+      <div class="row"><input id="ntitle" placeholder="عنوان الإشعار" style="min-width:280px"></div>
+      <div class="row"><input id="ntext" placeholder="نص الإشعار" style="min-width:280px"></div>
+      <div class="row"><button onclick="saveNotif()">حفظ النص</button></div>
+      <div class="err" id="notifErr"></div>
+      <div class="mut">الإشعار بيوصل للعميل لما ينزل سيت جديد لموديل موبايله (فحص يومي من التطبيق).</div>
+    </div>
   </div>
 </div>
 <script>
 let at = sessionStorage.getItem('ff_admin') || '';
+let curSets = [];
 const DUR_NAMES = {'1w':'أسبوع','2w':'أسبوعين','1m':'شهر','2m':'شهرين','3m':'3 شهور','6m':'6 شهور','1y':'سنة'};
 async function api(path, opts){
   opts = opts || {};
@@ -95,7 +134,7 @@ async function adminLogin(){
   sessionStorage.setItem('ff_admin', at);
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('panel').classList.remove('hidden');
-  loadUsers();
+  loadUsers(); loadModels(); loadNotif();
 }
 async function addUser(){
   document.getElementById('addErr').textContent='';
@@ -118,6 +157,70 @@ async function act(id, action, method){
   loadUsers();
 }
 function fmt(ts){ return new Date(ts).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}); }
+async function loadModels(){
+  const r = await api('/api/admin/modelslist');
+  if(r.status!==200) return;
+  const sel = document.getElementById('smodel');
+  const cur = sel.value;
+  sel.innerHTML = r.body.models.map(m=>'<option value="'+m+'">'+m+'</option>').join('') + '<option value="generic">عام (موديلات غير معروفة)</option>';
+  if(cur) sel.value = cur;
+  loadSets();
+}
+async function loadSets(){
+  const m = document.getElementById('smodel').value;
+  if(!m) return;
+  const r = await api('/api/admin/sets?model='+encodeURIComponent(m));
+  if(r.status!==200) return;
+  const sets = r.body.sets || [];
+  curSets = sets;
+  document.getElementById('setsRows').innerHTML = sets.length ? sets.map(function(st, i){
+    return '<div class="row" style="border-bottom:1px solid #232c47;padding:8px 0">' +
+      '<b style="min-width:110px">'+st.name+'</b>' +
+      '<span class="mut">عامة '+st.sens.general+' / ريد دوت '+st.sens.redDot+' / 2x '+st.sens.scope2x+' / 4x '+st.sens.scope4x+' / سنايبر '+st.sens.sniper+' / حرة '+st.sens.freeLook+(st.dpi?' / DPI '+st.dpi:'')+(st.note?' — '+st.note:'')+'</span>' +
+      '<button class="ghost" onclick="editSet(curSets['+i+'])">تعديل</button>' +
+      '<button class="danger" onclick="delSet(\''+st.id+'\')">مسح</button></div>';
+  }).join('') : '<div class="mut" style="margin-top:8px">مفيش سيتات إضافية للموديل ده لسه.</div>';
+}
+function clearSetForm(){
+  ['sid','sname','snote','sg','sr','s2','s4','ss','sf','sd'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('setFormTitle').textContent='إضافة سيت جديد';
+}
+function editSet(st){
+  document.getElementById('sid').value=st.id;
+  document.getElementById('sname').value=st.name||'';
+  document.getElementById('snote').value=st.note||'';
+  document.getElementById('sg').value=st.sens.general; document.getElementById('sr').value=st.sens.redDot;
+  document.getElementById('s2').value=st.sens.scope2x; document.getElementById('s4').value=st.sens.scope4x;
+  document.getElementById('ss').value=st.sens.sniper; document.getElementById('sf').value=st.sens.freeLook;
+  document.getElementById('sd').value=st.dpi||'';
+  document.getElementById('setFormTitle').textContent='تعديل: '+(st.name||'');
+}
+async function saveSet(){
+  const m = document.getElementById('smodel').value;
+  const body = { model:m, id:document.getElementById('sid').value||undefined, name:document.getElementById('sname').value.trim(), note:document.getElementById('snote').value.trim(),
+    general:document.getElementById('sg').value, redDot:document.getElementById('sr').value, scope2x:document.getElementById('s2').value,
+    scope4x:document.getElementById('s4').value, sniper:document.getElementById('ss').value, freeLook:document.getElementById('sf').value, dpi:document.getElementById('sd').value };
+  const r = await api('/api/admin/sets/save',{method:'POST',body:JSON.stringify(body)});
+  if(r.status!==200 && r.status!==201){ document.getElementById('setErr').textContent='اتأكد إن كل خانات الحساسية أرقام'; return; }
+  document.getElementById('setErr').textContent='';
+  clearSetForm(); loadSets();
+}
+async function delSet(id){
+  if(!confirm('تمسح السيت ده؟')) return;
+  await api('/api/admin/sets/delete',{method:'POST',body:JSON.stringify({model:document.getElementById('smodel').value,id:id})});
+  loadSets();
+}
+async function loadNotif(){
+  const r = await api('/api/admin/notiftext');
+  if(r.status!==200) return;
+  document.getElementById('ntitle').value = r.body.title||'';
+  document.getElementById('ntext').value = r.body.text||'';
+}
+async function saveNotif(){
+  const r = await api('/api/admin/notiftext',{method:'POST',body:JSON.stringify({title:document.getElementById('ntitle').value.trim(),text:document.getElementById('ntext').value.trim()})});
+  document.getElementById('notifErr').textContent = r.status===200 ? '' : 'حصل خطأ أثناء الحفظ';
+  if(r.status===200){ const e=document.getElementById('notifErr'); e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); }
+}
 async function loadUsers(){
   const r = await api('/api/admin/users');
   if(r.status!==200){ document.getElementById('panel').classList.add('hidden'); document.getElementById('loginCard').classList.remove('hidden'); return; }
@@ -147,7 +250,7 @@ async function imp(inp){
   inp.value='';
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); }
+if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); }
 </script>
 </body>
 </html>

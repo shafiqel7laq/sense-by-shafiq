@@ -171,6 +171,7 @@ function build(m, matchType, query) {
   ];
   return {
     matched: matchType !== 'default', matchType,
+    key: m.name || 'generic',
     device: {
       name: m.name || (query + ' (حسب فئة الجهاز)'),
       dpi: dpi, sens, fps, controls, weapons,

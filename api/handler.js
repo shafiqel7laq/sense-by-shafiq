@@ -30,6 +30,15 @@ const rand16 = () => toHex(crypto.getRandomValues(new Uint8Array(16)));
 const normPw = (s) => String(s ?? "").trim()
   .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
   .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
+async function getSets(key) { return (await get("sets/" + key)) || []; }
+const saveSets = (key, arr) => set("sets/" + key, arr);
+async function notifMsg() {
+  const n = await get("meta/notif");
+  return {
+    title: (n && n.title) || "إعدادات جديدة نزلت يا وحش 🔥",
+    text: (n && n.text) || "تعالى جرّب السيت الجديد وافشخ أصحابك، خليهم يقولوا عليك مفعّل 😈"
+  };
+}
 async function pwMatch(pw, storedHash) {
   const cands = [normPw(pw)];
   const raw = String(pw ?? "");
@@ -125,12 +134,28 @@ export default async (req) => {
       const pu = publicUser(s.user);
       if (!pu.active) return json({ error: "subscription_inactive", user: pu }, 403);
       const model = url.searchParams.get("model") || "";
-      return json({ user: pu, query: model, ...matchDevice(model) });
+      const mres = matchDevice(model);
+      const key = mres.key || "generic";
+      const stored = await getSets(key);
+      const base = { id: "base", name: "السيت الأساسي", note: "مولّد تلقائيًا حسب موبايلك", sens: mres.device.sens, dpi: mres.device.dpi, updatedAt: 0 };
+      const latest = stored.reduce((a, x) => Math.max(a, x.updatedAt || 0), 0);
+      return json({ user: pu, query: model, ...mres, key, sets: [base, ...stored], setsUpdatedAt: latest });
     }
     if (p === "/api/models" && req.method === "GET") {
       const s = await getSession(req);
       if (!s) return json({ error: "unauthorized" }, 401);
       return json({ models: listModels() });
+    }
+    if (p === "/api/updates" && req.method === "GET") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const pu = publicUser(s.user);
+      if (!pu.active) return json({ error: "subscription_inactive" }, 403);
+      let key = url.searchParams.get("key") || "";
+      if (!key) { const m = url.searchParams.get("model") || ""; key = (matchDevice(m).key) || "generic"; }
+      const arr = await getSets(key);
+      const latest = arr.reduce((a, x) => Math.max(a, x.updatedAt || 0), 0);
+      return json({ key, latest, ...(await notifMsg()) });
     }
     if (p === "/api/admin/login" && req.method === "POST") {
       const { password } = await req.json();
@@ -178,6 +203,53 @@ export default async (req) => {
         const u = { id: rid(), username: uname, salt, hash: await hashPassword(npw, salt), plan: duration, createdAt: Date.now(), expiresAt: Date.now() + days * 86400000, status: "active" };
         await putUser(u);
         return json({ user: publicUser(u) }, 201);
+      }
+      if (p === "/api/admin/modelslist" && req.method === "GET") {
+        return json({ models: listModels() });
+      }
+      if (p === "/api/admin/sets" && req.method === "GET") {
+        const key = url.searchParams.get("model") || "";
+        return json({ sets: await getSets(key) });
+      }
+      if (p === "/api/admin/sets/save" && req.method === "POST") {
+        const b = await req.json();
+        const key = String(b.model || "");
+        if (!key) return json({ error: "bad_model" }, 400);
+        const num = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.max(1, Math.min(200, n)) : null; };
+        const sens = { general: num(b.general), redDot: num(b.redDot), scope2x: num(b.scope2x), scope4x: num(b.scope4x), sniper: num(b.sniper), freeLook: num(b.freeLook) };
+        if (Object.values(sens).some(v => v == null)) return json({ error: "bad_values" }, 400);
+        let dpi = parseInt(b.dpi, 10);
+        dpi = Number.isFinite(dpi) ? Math.max(300, Math.min(800, dpi)) : null;
+        const arr = await getSets(key);
+        if (b.id) {
+          const i = arr.findIndex(x => x.id === b.id);
+          if (i < 0) return json({ error: "not_found" }, 404);
+          arr[i] = { ...arr[i], name: String(b.name || arr[i].name).slice(0, 60), note: String(b.note || "").slice(0, 200), sens, dpi, updatedAt: Date.now() };
+          await saveSets(key, arr);
+          return json({ set: arr[i] });
+        }
+        const item = { id: rid(), name: String(b.name || ("سيت " + (arr.length + 2))).slice(0, 60), note: String(b.note || "").slice(0, 200), sens, dpi, updatedAt: Date.now() };
+        arr.push(item);
+        await saveSets(key, arr);
+        return json({ set: item }, 201);
+      }
+      if (p === "/api/admin/sets/delete" && req.method === "POST") {
+        const b = await req.json();
+        const arr = await getSets(String(b.model || ""));
+        const i = arr.findIndex(x => x.id === b.id);
+        if (i < 0) return json({ error: "not_found" }, 404);
+        arr.splice(i, 1);
+        await saveSets(String(b.model || ""), arr);
+        return json({ ok: true });
+      }
+      if (p === "/api/admin/notiftext" && req.method === "GET") {
+        return json(await notifMsg());
+      }
+      if (p === "/api/admin/notiftext" && req.method === "POST") {
+        const b = await req.json();
+        const v = { title: String(b.title || "").slice(0, 80), text: String(b.text || "").slice(0, 240) };
+        await set("meta/notif", v);
+        return json(v);
       }
       const m2 = p.match(/^\/api\/admin\/users\/([a-f0-9]+)(\/(cancel|reactivate|extend|password))?$/);
       if (m2) {

@@ -4,12 +4,10 @@ import { match as matchDevice, list as listModels } from "../devices.js";
 const UPURL = process.env.UPSTASH_REDIS_REST_URL;
 const UPTOK = process.env.UPSTASH_REDIS_REST_TOKEN;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin1234";
-const DURATIONS = { "1w": 7, "2w": 14, "1m": 30, "2m": 60, "3m": 90, "6m": 180, "1y": 365, "life": 36500 };
+const DURATIONS = { "1w": 7, "2w": 14, "1m": 30, "life": 36500 };
 
 function durationDays(d) {
-  if (DURATIONS[d]) return DURATIONS[d];
-  const n = parseInt(d, 10);
-  return Number.isFinite(n) && n > 0 && n <= 3650 ? n : null;
+  return DURATIONS[d] || null;
 }
 const te = new TextEncoder();
 const toHex = (b) => [...new Uint8Array(b.buffer ? b : b)].map(x => x.toString(16).padStart(2, "0")).join("");

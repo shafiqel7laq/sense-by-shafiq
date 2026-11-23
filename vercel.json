@@ -1,12 +1,7 @@
 {
   "rewrites": [
-    {
-      "source": "/",
-      "destination": "/public/index.html"
-    },
-    {
-      "source": "/admin.html",
-      "destination": "/public/admin.html"
-    }
+    { "source": "/", "destination": "/public/index.html" },
+    { "source": "/admin.html", "destination": "/public/admin.html" },
+    { "source": "/api/:path*", "destination": "/api/handler?p=:path*" }
   ]
 }

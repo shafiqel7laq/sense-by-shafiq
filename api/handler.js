@@ -87,7 +87,9 @@ export const config = { runtime: "edge" };
 
 export default async (req) => {
   const url = new URL(req.url);
-  const p = url.pathname;
+  let p = url.pathname;
+  const qp = url.searchParams.get("p");
+  if (p === "/api/handler" && qp !== null) p = "/api/" + qp;
   try {
     if (p === "/api/login" && req.method === "POST") {
       const { username, password } = await req.json();

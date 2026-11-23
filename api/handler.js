@@ -1,6 +1,6 @@
 // Sense by Shafiq - Vercel edge function (all /api/* routes) with Upstash Redis REST storage
 import { match as matchDevice, list as listModels } from "../devices.js";
-import { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor, LAYOUTS_V2 } from "../content.js";
+import { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor, LAYOUTS_V2, AIM_SKILLS, aimSuggestion } from "../content.js";
 
 const UPURL = process.env.UPSTASH_REDIS_REST_URL;
 const UPTOK = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -9,6 +9,10 @@ const DURATIONS = { "1w": 7, "2w": 14, "1m": 30, "life": 36500 };
 
 function durationDays(d) {
   return DURATIONS[d] || null;
+}
+function dayOfYear() {
+  const n = new Date();
+  return Math.floor((n.getTime() - new Date(n.getFullYear(), 0, 0).getTime()) / 86400000);
 }
 const te = new TextEncoder();
 const toHex = (b) => [...new Uint8Array(b.buffer ? b : b)].map(x => x.toString(16).padStart(2, "0")).join("");
@@ -223,7 +227,36 @@ export default async (req) => {
       const refCode = await ensureRefCode(s.user);
       return json({ user: publicUser(s.user), nick: s.user.nick || "", streak: { count: st.count || 0, best: st.best || 0, giftDays: cfg.giftDays || 1 },
         referral: { code: refCode, count: s.user.refCount || 0, used: !!s.user.referredBy },
-        expNotif: await expiryMsg(), fpsMode: s.user.fpsMode || null });
+        expNotif: await expiryMsg(), fpsMode: s.user.fpsMode || null,
+        aimBest: (((await get("aim/" + s.user.id)) || { results: [] }).results || []).reduce((a, r) => Math.max(a, r.overall || 0), 0) });
+    }
+    if (p === "/api/aimtest" && req.method === "GET") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const h = (await get("aim/" + s.user.id)) || { results: [] };
+      const best = h.results.reduce((a, r) => Math.max(a, r.overall || 0), 0);
+      return json({ best, history: h.results });
+    }
+    if (p === "/api/aimtest" && req.method === "POST") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const b = await req.json();
+      const skills = {};
+      for (const k of ["reaction", "drag", "stability", "moving", "focus"]) {
+        const v = Math.round(Number((b.skills || {})[k]));
+        if (!(v >= 0 && v <= 100)) return json({ error: "bad_skills" }, 400);
+        skills[k] = v;
+      }
+      const overall = Math.round((skills.reaction + skills.drag + skills.stability + skills.moving + skills.focus) / 5);
+      const h = (await get("aim/" + s.user.id)) || { results: [] };
+      h.results.push({ ts: Date.now(), overall, skills });
+      h.results = h.results.slice(-30);
+      await set("aim/" + s.user.id, h);
+      const best = h.results.reduce((a, r) => Math.max(a, r.overall || 0), 0);
+      const dy = dayOfYear();
+      const weak = {};
+      for (const k in skills) { if (skills[k] < 50) { const sg = aimSuggestion(k, dy); if (sg) weak[k] = sg; } }
+      return json({ best, history: h.results, overall, weak });
     }
     if (p === "/api/fpsmode" && req.method === "POST") {
       const s = await getSession(req);
@@ -715,7 +748,16 @@ export default async (req) => {
           else { const pr = parseFloat(pay.prices[r.plan]); if (Number.isFinite(pr)) monthIncome += pr; }
         }
         const topModels = Object.entries(modelCount).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([model, count]) => ({ model, count }));
-        return json({ active, expired, monthIncome, monthApproved, expiringSoon: expiring, topModels });
+        let aimPlayers = 0, aimSum = 0, aimTests = 0;
+        const akeys = await listPrefix("aim/");
+        for (const k of akeys) {
+          const h = await get(k);
+          if (!h || !h.results || !h.results.length) continue;
+          aimPlayers++; aimTests += h.results.length;
+          aimSum += h.results[h.results.length - 1].overall || 0;
+        }
+        const aim = { players: aimPlayers, tests: aimTests, avg: aimPlayers ? Math.round(aimSum / aimPlayers) : 0 };
+        return json({ active, expired, monthIncome, monthApproved, expiringSoon: expiring, topModels, aim });
       }
       const m2 = p.match(/^\/api\/admin\/users\/([a-f0-9]+)(\/(cancel|reactivate|extend|password))?$/);
       if (m2) {

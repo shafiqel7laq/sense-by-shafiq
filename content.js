@@ -61,7 +61,7 @@ function dailyFor(dayOfYear) {
   return { training: TRAININGS[dayOfYear % TRAININGS.length], tip: TIPS[dayOfYear % TIPS.length] };
 }
 
-export { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor, LAYOUTS_V2, LAY_BTN_NAMES };
+export { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor, LAYOUTS_V2, LAY_BTN_NAMES, AIM_SKILLS, aimSuggestion };
 
 // ===== ترتيب الأزرار v2: تابات بعدد الصوابع + أنماط + قيم أزرار (رسمنا SVG خاص - ممنوع صور المنافسين) =====
 // pos: إحداثيات على viewBox 100x45 (شاشة بالعرض) - x,y مركز الزر، r نصف القطر
@@ -109,3 +109,18 @@ const LAYOUTS_V2 = [
   ]}
 ];
 const LAY_BTN_NAMES = { fire: 'زر إطلاق النار', jump: 'زر القفز', run: 'زر الركض السريع', weapon: 'منطقة السلاح', swap: 'زر التبديل السريع', bag: 'زر الحقيبة', med: 'زر الإسعافات', skill: 'زر المهارة', joy: 'عجلة الحركة' };
+
+// ===== اختبار الآيم: مهارات + ربط نقاط الضعف بتمارين من البنك =====
+const AIM_SKILLS = {
+  reaction: { name: 'سرعة رد الفعل', train: [13, 3, 12] },
+  drag: { name: 'طريقة سحب زر الضرب', train: [2, 0, 10] },
+  stability: { name: 'ثبات الآيم على الرأس', train: [4, 8, 9] },
+  moving: { name: 'دقة الخصم المتحرك', train: [1, 9, 11] },
+  focus: { name: 'التركيز', train: [3, 5, 14] }
+};
+function aimSuggestion(skill, dayOfYear) {
+  const sk = AIM_SKILLS[skill];
+  if (!sk) return null;
+  const tr = TRAININGS[sk.train[dayOfYear % sk.train.length]];
+  return { skill, name: sk.name, training: tr };
+}

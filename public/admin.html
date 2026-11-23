@@ -63,6 +63,7 @@ th{color:var(--mut);font-weight:600}
       <div id="stExpiring" class="mut">...</div>
       <h3 style="font-size:14px;margin-top:10px">أكتر الموديلات استخدامًا</h3>
       <div id="stModels" class="mut">...</div>
+      <div class="mut" style="margin-top:8px">اختبار الآيم 🎯: <span id="stAim">...</span></div>
     </div>
     <div class="card">
       <h2 style="font-size:16px">إضافة زبون جديد</h2>
@@ -480,6 +481,9 @@ async function loadStats(){
   document.getElementById('stModels').innerHTML = (s.topModels||[]).length
     ? s.topModels.map(x=>'<div>'+esc(x.model)+' — '+x.count+' عميل</div>').join('')
     : 'لسه مفيش بيانات موديلات (بتتسجل أول ما العميل يفتح التطبيق)';
+  document.getElementById('stAim').textContent = s.aim && s.aim.players
+    ? s.aim.avg+'% متوسط ('+s.aim.players+' عميل × '+s.aim.tests+' اختبار)'
+    : 'لسه مفيش نتايج اختبار آيم';
 }
 async function loadRefCfg(){
   const r = await api('/api/admin/referralcfg');

@@ -95,6 +95,13 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
       <div class="tips" id="tipOfDay" style="margin-top:10px"></div>
     </div>
 
+    <div class="card" id="aimCard" style="text-align:center">
+      <h2 style="font-size:15px">اختبار الآيم 🎯</h2>
+      <div class="mut" style="font-size:13px;margin-top:4px">5 اختبارات سريعة تقيس رد فعلك وسحبتك وثباتك — ونتيجتك بتتحفظ وبتشوف تقدمك</div>
+      <div id="aimBestLine" style="font-size:15px;font-weight:800;color:var(--acc2);margin:8px 0"></div>
+      <button onclick="openAim()">ابدأ الاختبار 🔥</button>
+    </div>
+
     <div class="card" id="deviceCard">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
@@ -541,6 +548,353 @@ function pickLay(id) {
       return '<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #232c47"><div>'+LAY_NAMES[k]+'</div><div style="white-space:nowrap"><span style="color:var(--acc2);font-weight:700">'+v.s+'%</span> <span class="mut">• شفافية '+v.o+'%</span></div></div>';
     }).join('')+'</div>';
 }
+
+// ===== اختبار الآيم =====
+const AIM_SK = [['reaction','سرعة رد الفعل'],['drag','طريقة سحب زر الضرب'],['stability','ثبات الآيم على الرأس'],['moving','دقة الخصم المتحرك'],['focus','التركيز']];
+let aimRun = null;
+function aimTitleName(o){ return o>=85?'وحش ⚡':o>=65?'متقدم 💪':o>=45?'لاعب':'مبتدئ'; }
+function openAim(){
+  document.getElementById('aimOverlay').style.display='block';
+  document.getElementById('aimStage').style.display='block';
+  document.getElementById('aimResult').style.display='none';
+  document.body.style.overflow='hidden';
+  const cv = document.getElementById('aimCv');
+  const dpr = window.devicePixelRatio||1;
+  cv.width = cv.clientWidth*dpr; cv.height = cv.clientHeight*dpr;
+  aimRun = { cv, ctx: cv.getContext('2d'), dpr, scores:{}, step:0, dead:false };
+  aimCountdown(3);
+}
+function closeAim(){
+  if(aimRun) aimRun.dead = true;
+  document.getElementById('aimOverlay').style.display='none';
+  document.body.style.overflow='';
+}
+function aimClear(){
+  const {ctx,cv} = aimRun; ctx.clearRect(0,0,cv.width,cv.height);
+}
+function aimMsg(t,sub){ document.getElementById('aimMsg').textContent = t||''; document.getElementById('aimSub').textContent = sub||''; }
+function aimCircle(x,y,r,fill,stroke){
+  const {ctx,dpr} = aimRun;
+  ctx.beginPath(); ctx.arc(x*dpr,y*dpr,r*dpr,0,7);
+  ctx.fillStyle = fill; ctx.fill();
+  if(stroke){ ctx.lineWidth=2*dpr; ctx.strokeStyle=stroke; ctx.stroke(); }
+}
+function aimText(t,x,y,size,color){
+  const {ctx,dpr} = aimRun;
+  ctx.fillStyle=color||'#eef1f8'; ctx.font='bold '+(size*dpr)+'px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(t,x*dpr,y*dpr);
+}
+function aimPos(e){
+  const r = aimRun.cv.getBoundingClientRect();
+  return { x: e.clientX-r.left, y: e.clientY-r.top };
+}
+function aimCountdown(n){
+  if(!aimRun || aimRun.dead) return;
+  aimClear();
+  if(n===0){ aimMsg('يلا يا وحش! 🔥'); aimText('GO!', aimRun.cv.clientWidth/2, aimRun.cv.clientHeight/2, 42, '#ff7a1a'); setTimeout(aimNextTest, 500); return; }
+  aimMsg('استعد...');
+  aimText(String(n), aimRun.cv.clientWidth/2, aimRun.cv.clientHeight/2, 54, '#ff7a1a');
+  setTimeout(()=>aimCountdown(n-1), 800);
+}
+const AIM_TESTS = [
+  { key:'reaction', name:'سرعة رد الفعل ⚡', hint:'أول ما الهدف يظهر دوس عليه بأسرع ما تقدر — 10 جولات', run: aimTestReaction },
+  { key:'drag', name:'سحبة زر الضرب 🔥', hint:'اسحب من زرار النار لراس الخصم بسرعة — 5 جولات', run: aimTestDrag },
+  { key:'stability', name:'ثبات الآيم 🎯', hint:'دوس مطوّل على الراس وخلي إيدك ثابتة — 3 جولات', run: aimTestStability },
+  { key:'moving', name:'الخصم المتحرك 🏃', hint:'دوس على الهدف وهو بيتحرك — 10 جولات', run: aimTestMoving },
+  { key:'focus', name:'التركيز 👀', hint:'دوس على العدو الأحمر بس — الأزرق صاحبك! 8 جولات', run: aimTestFocus }
+];
+function aimNextTest(){
+  if(!aimRun || aimRun.dead) return;
+  if(aimRun.step >= AIM_TESTS.length){ aimFinish(); return; }
+  const t = AIM_TESTS[aimRun.step];
+  aimClear();
+  aimMsg(t.name, t.hint);
+  aimText(t.name, aimRun.cv.clientWidth/2, aimRun.cv.clientHeight/2 - 14, 22, '#ff7a1a');
+  aimText('جاهز؟', aimRun.cv.clientWidth/2, aimRun.cv.clientHeight/2 + 18, 16, '#9aa3b8');
+  setTimeout(()=>{ if(aimRun && !aimRun.dead) t.run(function(score){ aimRun.scores[t.key]=Math.round(score); aimRun.step++; aimNextTest(); }); }, 1400);
+}
+// 1) رد الفعل: 10 جولات
+function aimTestReaction(done){
+  const W = aimRun.cv.clientWidth, H = aimRun.cv.clientHeight;
+  let round = 0, total = 0, target = null, t0 = 0, timer = null, lock = false;
+  function nextRound(){
+    if(aimRun.dead){ cleanup(); return; }
+    if(round>=10){ cleanup(); done(total/10); return; }
+    target = null; aimClear(); aimMsg('سرعة رد الفعل ⚡','جولة '+(round+1)+' من 10 — استنى الهدف...');
+    timer = setTimeout(()=>{
+      target = { x: 40+Math.random()*(W-80), y: 40+Math.random()*(H-80), r: 30 };
+      t0 = performance.now(); lock = false;
+      aimClear(); aimCircle(target.x,target.y,target.r,'#ff7a1a','#ffd9b0'); aimText('🎯',target.x,target.y,20);
+    }, 600+Math.random()*1100);
+  }
+  function onDown(e){
+    if(lock) return;
+    const p = aimPos(e);
+    if(!target){ return; }
+    lock = true;
+    const d = Math.hypot(p.x-target.x, p.y-target.y);
+    let sc = 0;
+    if(d <= target.r+14){ const ms = performance.now()-t0; sc = ms<=250?100:ms>=650?0:Math.round(100-(ms-250)*100/400); }
+    total += sc; round++;
+    aimClear();
+    aimText(sc>0?'+'+sc:'0', p.x, p.y-24, 20, sc>=70?'#3ddc84':sc>0?'#ffb020':'#ff5252');
+    setTimeout(nextRound, 350);
+  }
+  function cleanup(){ aimRun.cv.removeEventListener('pointerdown', onDown); clearTimeout(timer); }
+  aimRun.cv.addEventListener('pointerdown', onDown);
+  nextRound();
+}
+// 2) السحبة: 5 جولات
+function aimTestDrag(done){
+  const W = aimRun.cv.clientWidth, H = aimRun.cv.clientHeight;
+  let round = 0, total = 0, fire = null, head = null, dragging = false, t0 = 0, cur = null;
+  function draw(){
+    aimClear();
+    aimCircle(fire.x,fire.y,fire.r,'rgba(255,122,26,0.25)','#ff7a1a'); aimText('🔥',fire.x,fire.y,18);
+    aimCircle(head.x,head.y,head.r,'#ff5252','#ffc4c4'); aimText('💀',head.x,head.y,16);
+    if(cur){ aimRun.ctx.strokeStyle='rgba(255,122,26,0.7)'; aimRun.ctx.lineWidth=3*aimRun.dpr; aimRun.ctx.beginPath(); aimRun.ctx.moveTo(fire.x*aimRun.dpr,fire.y*aimRun.dpr); aimRun.ctx.lineTo(cur.x*aimRun.dpr,cur.y*aimRun.dpr); aimRun.ctx.stroke(); }
+  }
+  function nextRound(){
+    if(aimRun.dead){ cleanup(); return; }
+    if(round>=5){ cleanup(); done(total/5); return; }
+    fire = { x: W-60, y: H-60, r: 34 };
+    head = { x: 50+Math.random()*(W-100), y: 50+Math.random()*(H*0.4), r: 26 };
+    dragging = false; cur = null;
+    aimMsg('سحبة زر الضرب 🔥','جولة '+(round+1)+' من 5 — اسحب من النار للراس');
+    draw();
+  }
+  function onDown(e){ const p = aimPos(e); if(Math.hypot(p.x-fire.x,p.y-fire.y)<=fire.r+10){ dragging = true; t0 = performance.now(); cur = p; } }
+  function onMove(e){ if(!dragging) return; cur = aimPos(e); draw();
+    if(Math.hypot(cur.x-head.x,cur.y-head.y)<=head.r){ finishDrag(); } }
+  function onUp(){ if(dragging){ finishDrag(true); } }
+  function finishDrag(missed){
+    dragging = false;
+    const ms = performance.now()-t0;
+    let sc = 0;
+    if(!missed){ sc = ms<=400?100:ms>=1600?0:Math.round(100-(ms-400)*100/1200); }
+    total += sc; round++;
+    aimText(sc>0?'+'+sc:'0', head.x, head.y-34, 20, sc>=70?'#3ddc84':sc>0?'#ffb020':'#ff5252');
+    setTimeout(nextRound, 400);
+  }
+  function cleanup(){ ['pointerdown','pointermove','pointerup','pointercancel'].forEach((ev,i)=>aimRun.cv.removeEventListener(ev,[onDown,onMove,onUp,onUp][i])); }
+  aimRun.cv.addEventListener('pointerdown', onDown);
+  aimRun.cv.addEventListener('pointermove', onMove);
+  aimRun.cv.addEventListener('pointerup', onUp);
+  aimRun.cv.addEventListener('pointercancel', onUp);
+  nextRound();
+}
+// 3) الثبات: 3 جولات ضغطة مطولة 2 ثانية
+function aimTestStability(done){
+  const W = aimRun.cv.clientWidth, H = aimRun.cv.clientHeight;
+  let round = 0, total = 0, target = null, holding = false, t0 = 0, devSum = 0, devN = 0, raf = null;
+  function draw(){
+    aimClear();
+    aimCircle(target.x,target.y,target.r,'rgba(255,82,82,0.3)','#ff5252');
+    aimCircle(target.x,target.y,6,'#ff5252');
+    aimText('+',target.x,target.y,18,'#fff');
+    if(holding){
+      const left = Math.max(0, 2000-(performance.now()-t0));
+      aimText((left/1000).toFixed(1), target.x, target.y-target.r-22, 18, '#ffb020');
+    }
+  }
+  function nextRound(){
+    if(aimRun.dead){ cleanup(); return; }
+    if(round>=3){ cleanup(); done(total/3); return; }
+    target = { x: W/2 + (Math.random()*80-40), y: H/2 + (Math.random()*60-30), r: 34 };
+    holding = false;
+    aimMsg('ثبات الآيم 🎯','جولة '+(round+1)+' من 3 — دوس مطوّل على الراس ثانيتين');
+    draw();
+  }
+  function tick(){
+    if(!holding) return;
+    devSum += curDev; devN++;
+    draw();
+    if(performance.now()-t0 >= 2000){
+      holding = false;
+      const avgDev = devN? devSum/devN : 99;
+      const sc = avgDev<=8?100:avgDev>=40?0:Math.round(100-(avgDev-8)*100/32);
+      total += sc; round++;
+      aimText('+'+sc, target.x, target.y+target.r+24, 20, sc>=70?'#3ddc84':'#ffb020');
+      setTimeout(nextRound, 450);
+      return;
+    }
+    raf = requestAnimationFrame(tick);
+  }
+  let curDev = 99;
+  function onDown(e){ const p = aimPos(e); if(target && Math.hypot(p.x-target.x,p.y-target.y)<=target.r){ holding = true; t0 = performance.now(); devSum=0; devN=0; curDev = Math.hypot(p.x-target.x,p.y-target.y); raf = requestAnimationFrame(tick); } }
+  function onMove(e){ if(holding){ const p = aimPos(e); curDev = Math.hypot(p.x-target.x,p.y-target.y); } }
+  function onUp(){ if(holding){ holding = false; cancelAnimationFrame(raf);
+    const heldMs = performance.now()-t0;
+    const avgDev = devN? devSum/devN : 99;
+    const devSc = avgDev<=8?100:avgDev>=40?0:Math.round(100-(avgDev-8)*100/32);
+    const sc = Math.round(devSc * Math.min(1, heldMs/2000) * 0.6);
+    total += sc; round++;
+    aimText('+'+sc+' (خلصت بدري)', target.x, target.y+target.r+24, 16, '#ffb020');
+    setTimeout(nextRound, 450);
+  } }
+  function cleanup(){ ['pointerdown','pointermove','pointerup','pointercancel'].forEach((ev,i)=>aimRun.cv.removeEventListener(ev,[onDown,onMove,onUp,onUp][i])); cancelAnimationFrame(raf); }
+  aimRun.cv.addEventListener('pointerdown', onDown);
+  aimRun.cv.addEventListener('pointermove', onMove);
+  aimRun.cv.addEventListener('pointerup', onUp);
+  aimRun.cv.addEventListener('pointercancel', onUp);
+  nextRound();
+}
+// 4) الهدف المتحرك: 10 جولات
+function aimTestMoving(done){
+  const W = aimRun.cv.clientWidth, H = aimRun.cv.clientHeight;
+  let round = 0, total = 0, tgt = null, raf = null, roundStart = 0, lock = false;
+  function nextRound(){
+    if(aimRun.dead){ cleanup(); return; }
+    if(round>=10){ cleanup(); done(total/10); return; }
+    const speed = (1.2 + round*0.25);
+    tgt = { x: 50+Math.random()*(W-100), y: 60+Math.random()*(H-120), r: 26, vx: (Math.random()<0.5?-1:1)*speed, vy: (Math.random()<0.5?-1:1)*speed*0.6 };
+    roundStart = performance.now(); lock = false;
+    aimMsg('الخصم المتحرك 🏃','جولة '+(round+1)+' من 10');
+    raf = requestAnimationFrame(tick);
+  }
+  function tick(){
+    if(aimRun.dead || !tgt) return;
+    tgt.x += tgt.vx; tgt.y += tgt.vy;
+    if(tgt.x < tgt.r || tgt.x > W-tgt.r) tgt.vx *= -1;
+    if(tgt.y < tgt.r || tgt.y > H-tgt.r) tgt.vy *= -1;
+    aimClear();
+    aimCircle(tgt.x,tgt.y,tgt.r,'#ff7a1a','#ffd9b0'); aimText('💀',tgt.x,tgt.y,16);
+    if(performance.now()-roundStart > 2600){ endRound(0, tgt.x, tgt.y); return; }
+    raf = requestAnimationFrame(tick);
+  }
+  function endRound(sc, x, y){
+    if(lock) return; lock = true;
+    cancelAnimationFrame(raf);
+    total += sc; round++;
+    aimText(sc>0?'+'+sc:'0', x, y-32, 20, sc>0?'#3ddc84':'#ff5252');
+    tgt = null;
+    setTimeout(nextRound, 350);
+  }
+  function onDown(e){
+    if(!tgt || lock) return;
+    const p = aimPos(e);
+    const hit = Math.hypot(p.x-tgt.x, p.y-tgt.y) <= tgt.r+12;
+    endRound(hit?100:0, p.x, p.y);
+  }
+  function cleanup(){ aimRun.cv.removeEventListener('pointerdown', onDown); cancelAnimationFrame(raf); }
+  aimRun.cv.addEventListener('pointerdown', onDown);
+  nextRound();
+}
+// 5) التركيز: عدو أحمر وصاحبك أزرق — 8 جولات
+function aimTestFocus(done){
+  const W = aimRun.cv.clientWidth, H = aimRun.cv.clientHeight;
+  let round = 0, total = 0, en = null, fr = null, t0 = 0, timer = null, lock = false;
+  function nextRound(){
+    if(aimRun.dead){ cleanup(); return; }
+    if(round>=8){ cleanup(); done(total/8); return; }
+    en = null; fr = null; aimClear();
+    aimMsg('التركيز 👀','جولة '+(round+1)+' من 8 — الأحمر بس!');
+    timer = setTimeout(()=>{
+      en = { x: 45+Math.random()*(W-90), y: 45+Math.random()*(H-90), r: 28 };
+      do { fr = { x: 45+Math.random()*(W-90), y: 45+Math.random()*(H-90), r: 28 }; }
+      while(Math.hypot(fr.x-en.x,fr.y-en.y) < 110);
+      t0 = performance.now(); lock = false;
+      aimClear();
+      aimCircle(en.x,en.y,en.r,'#ff5252','#ffc4c4'); aimText('💀',en.x,en.y,16);
+      aimCircle(fr.x,fr.y,fr.r,'#3d8bff','#c4dcff'); aimText('🙂',fr.x,fr.y,16);
+      timer = setTimeout(()=>{ if(!lock){ lock=true; round++; aimText('فاتت!', W/2, 30, 18, '#ff5252'); setTimeout(nextRound, 400); } }, 2500);
+    }, 500+Math.random()*900);
+  }
+  function onDown(e){
+    if(!en || lock) return;
+    const p = aimPos(e); lock = true;
+    clearTimeout(timer);
+    let sc = 0;
+    if(Math.hypot(p.x-en.x,p.y-en.y) <= en.r+12){ const ms = performance.now()-t0; sc = ms<=500?100:ms>=1500?0:Math.round(100-(ms-500)); }
+    total += sc; round++;
+    aimText(sc>0?'+'+sc:'❌', p.x, p.y-26, 20, sc>0?'#3ddc84':'#ff5252');
+    setTimeout(nextRound, 380);
+  }
+  function cleanup(){ aimRun.cv.removeEventListener('pointerdown', onDown); clearTimeout(timer); }
+  aimRun.cv.addEventListener('pointerdown', onDown);
+  nextRound();
+}
+// النتيجة
+async function aimFinish(){
+  const sc = aimRun.scores;
+  const overall = Math.round((sc.reaction+sc.drag+sc.stability+sc.moving+sc.focus)/5);
+  aimMsg('خلصت! بيحفظ النتيجة...','');
+  const r = await api('/api/aimtest',{method:'POST',body:JSON.stringify({skills:sc})});
+  if(r.status!==200){ aimMsg('حصل خطأ في الحفظ — جرب تاني'); return; }
+  renderAimResult(r.body);
+  loadAimBest();
+}
+function renderAimResult(d){
+  document.getElementById('aimStage').style.display='none';
+  const el = document.getElementById('aimResult');
+  el.style.display='block';
+  const hist = d.history||[];
+  let bars = AIM_SK.map(function(kv){
+    const v = (hist.length? hist[hist.length-1].skills[kv[0]] : 0);
+    const col = v>=70?'#3ddc84':v>=50?'#ffb020':'#ff5252';
+    return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+kv[1]+'</span><span style="color:'+col+';font-weight:800">'+v+'%</span></div>'+
+      '<div style="background:#232c47;border-radius:8px;height:10px;margin-top:4px"><div style="width:'+v+'%;background:'+col+';height:10px;border-radius:8px"></div></div></div>';
+  }).join('');
+  let weakHtml = '';
+  if(d.weak && Object.keys(d.weak).length){
+    weakHtml = '<div style="margin-top:14px;text-align:right"><div style="font-weight:800;font-size:14px;margin-bottom:6px">نقاط ضعفك وخطة علاجها 💪</div>'+
+      Object.keys(d.weak).map(function(k){
+        const w = d.weak[k];
+        return '<div style="background:var(--card2);border:1px solid #232c47;border-radius:12px;padding:10px;margin-bottom:8px">'+
+          '<div style="font-size:13px;color:#ff5252;font-weight:700">'+w.name+'</div>'+
+          '<div style="font-size:13px;margin-top:4px;line-height:1.8">'+w.training.t+' — '+w.training.d+'</div>'+
+          '<button class="ghost" style="width:auto;padding:6px 14px;margin-top:6px;font-size:13px" onclick="closeAim();setTimeout(()=>{document.getElementById(\'trainCard\').scrollIntoView({block:\'center\'})},200)">روح للتمرين 🎯</button></div>';
+      }).join('')+'</div>';
+  }
+  el.innerHTML =
+    '<div style="text-align:center;margin-top:18px">'+
+    '<div style="font-size:15px" class="mut">النتيجة الكلية</div>'+
+    '<div style="font-size:52px;font-weight:900;color:var(--acc)">'+d.overall+'%</div>'+
+    '<div style="font-size:22px;font-weight:800;color:var(--acc2)">'+aimTitleName(d.overall)+'</div>'+
+    '<div style="font-size:13px;margin-top:6px" class="mut">أحسن نتيجتك: <span style="color:#3ddc84;font-weight:800">'+d.best+'%</span></div></div>'+
+    '<div style="margin-top:16px">'+bars+'</div>'+
+    (hist.length>1 ? '<div style="margin-top:14px"><div style="font-weight:800;font-size:14px;margin-bottom:6px">تقدمك عبر الوقت 📈</div><canvas id="aimChart" style="width:100%;height:70px;background:#10141f;border:1px solid #232c47;border-radius:10px"></canvas></div>' : '')+
+    weakHtml+
+    '<div style="display:flex;gap:10px;margin-top:16px"><button style="flex:1" onclick="openAim()">إعادة الاختبار 🔄</button><button class="ghost" style="flex:1" onclick="closeAim()">تم ✅</button></div>';
+  if(hist.length>1){
+    const c = document.getElementById('aimChart');
+    const dpr = window.devicePixelRatio||1;
+    c.width = c.clientWidth*dpr; c.height = c.clientHeight*dpr;
+    const cx = c.getContext('2d');
+    const vals = hist.map(h=>h.overall);
+    const n = vals.length, pad = 12;
+    const X = i => pad + i*(c.width-2*pad)/Math.max(1,n-1);
+    const Y = v => c.height-pad - (v/100)*(c.height-2*pad);
+    cx.strokeStyle='#232c47'; cx.lineWidth=1;
+    for(const g of [25,50,75]){ cx.beginPath(); cx.moveTo(0,Y(g)); cx.lineTo(c.width,Y(g)); cx.stroke(); }
+    cx.strokeStyle='#ff7a1a'; cx.lineWidth=2*dpr; cx.beginPath();
+    vals.forEach((v,i)=>{ i?cx.lineTo(X(i),Y(v)):cx.moveTo(X(i),Y(v)); });
+    cx.stroke();
+    vals.forEach((v,i)=>{ cx.beginPath(); cx.arc(X(i),Y(v),3*dpr,0,7); cx.fillStyle='#ffb020'; cx.fill(); });
+  }
+  document.getElementById('aimOverlay').scrollTop = 0;
+}
+function loadAimBest(){
+  api('/api/me').then(function(r){
+    if(r.status===200 && r.body.aimBest>0){ document.getElementById('aimBestLine').textContent = 'أحسن نتيجتك: '+r.body.aimBest+'% 🏆'; }
+    else { document.getElementById('aimBestLine').textContent = 'لسه مجرّبتش — ورّيني مستواك!'; }
+  });
+}
+loadAimBest();
 </script>
+<div id="aimOverlay" style="display:none;position:fixed;inset:0;background:#0b0e17;z-index:999;overflow-y:auto">
+  <div style="max-width:560px;margin:0 auto;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800;font-size:16px">اختبار الآيم 🎯</div>
+      <button class="ghost" style="width:auto;padding:6px 14px" onclick="closeAim()">✕ خروج</button>
+    </div>
+    <div id="aimStage">
+      <div id="aimMsg" style="text-align:center;font-size:15px;font-weight:700;min-height:26px;margin:10px 0;color:var(--acc2)"></div>
+      <canvas id="aimCv" style="width:100%;height:52vh;background:#10141f;border:1px solid #232c47;border-radius:14px;touch-action:none;display:block"></canvas>
+      <div id="aimSub" class="mut" style="text-align:center;font-size:13px;margin-top:8px;min-height:20px"></div>
+    </div>
+    <div id="aimResult" style="display:none"></div>
+  </div>
+</div>
 </body>
 </html>

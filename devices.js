@@ -146,11 +146,30 @@ function build(m, matchType, query) {
   if (hz >= 90) tips.push('شاشتك ' + hz + 'Hz: تأكد إن معدل التحديث على أعلى قيمة من إعدادات الشاشة قبل اللعب.');
   tips.push('اقفل وضع توفير البطارية وهو بيلعب، بيقلل استجابة اللمس.');
   tips.push('حجم زرار الضرب: بين 48 و 56، وجرب في ساحة التدريب وظبط رقم رقم لحد ما ترتاح.');
+  const weapons = [
+    { k: 'قريب المدى (SMG / شوتجن)', v: 'ريد دوت ' + sens.redDot, d: 'العب بسحبة سريعة لفوق بعد أول طلقة (Drag Shot)، وحجم زرار الضرب 45-56% بيساعد السحبة' },
+    { k: 'متوسط المدى (AR بسكوب 2x)', v: 'سكوب 2x: ' + sens.scope2x, d: 'ثابت للمعارك المتوسطة، تتبع الهدف بحركة مستمرة' },
+    { k: 'بعيد المدى (AR بسكوب 4x)', v: 'سكوب 4x: ' + sens.scope4x, d: 'أقل شوية عشان يقلل الرشاش (recoil) وقت السبراي' },
+    { k: 'سنايبر (AWM وغيره)', v: 'سنايبر ' + sens.sniper, d: 'حساسية هادية عشان التصويب ما يهتزش، والطلقة الواحدة تحسم' },
+    { k: 'لف الكاميرا والاستكشاف', v: 'نظرة حرة ' + sens.freeLook, d: 'لكشف المنطقة من غير ما تغيّر اتجاهك' }
+  ];
+  const controls = [
+    { k: 'دقة التصويب (Aim Precision)', v: 'Default', why: 'النظام بيساعد يقفل التصويب على الجسم قبل ما تسحب للراس' },
+    { k: 'مساعدة التصويب (Aim Assist)', v: 'ON', why: '' },
+    { k: 'زرار الضرب الشمال (Left Fire Button)', v: 'Always Show', why: 'ضروري للتبديل السريع والضرب من غير سكوب' },
+    { k: 'حجم زرار الضرب اليمين', v: tier >= 6 ? '45-52%' : '50-56%', why: 'في Custom HUD' },
+    { k: 'مكان زرار الضرب اليمين', v: 'انزله تحت شوية', why: 'يديك مساحة أكبر لسحب الهيدشوت (Drag Shot)' },
+    { k: 'Quick Weapon Switch', v: 'ON', why: 'التبديل السريع بين الأسلحة بيكسب معارك' },
+    { k: 'Auto Pick-up', v: 'ON', why: '' },
+    { k: 'Graphics', v: 'Smooth', why: 'ثبات الفريمات أهم من الشكل' },
+    { k: 'Shadows', v: 'OFF', why: '' },
+    { k: 'High FPS', v: 'ON لو متاح', why: '' }
+  ];
   return {
     matched: matchType !== 'default', matchType,
     device: {
       name: m.name || (query + ' (حسب فئة الجهاز)'),
-      dpi: dpi, sens, fps,
+      dpi: dpi, sens, fps, controls, weapons,
       graphics: 'Smooth + High FPS',
       refresh: hz, ramGB: m.ram,
       tips: tips.join('\n'),

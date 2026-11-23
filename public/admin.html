@@ -88,7 +88,7 @@ async function api(path, opts){
   return { status:r.status, body: await r.json().catch(()=>({})) };
 }
 async function adminLogin(){
-  const pw = document.getElementById('apw').value;
+  const pw = document.getElementById('apw').value.trim();
   const r = await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
   if(r.status!==200){ document.getElementById('aerr').textContent='كلمة السر غلط'; return; }
   at = (await r.json()).token;

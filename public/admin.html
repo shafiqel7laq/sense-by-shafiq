@@ -54,6 +54,7 @@ th{color:var(--mut);font-weight:600}
           <option value="3m">3 شهور</option>
           <option value="6m">6 شهور</option>
           <option value="1y">سنة</option>
+          <option value="life">مدى الحياة</option>
         </select>
         <button onclick="addUser()">إضافة</button>
       </div>
@@ -179,7 +180,7 @@ th{color:var(--mut);font-weight:600}
 <script>
 let at = sessionStorage.getItem('ff_admin') || '';
 let curSets = [];
-const DUR_NAMES = {'1w':'أسبوع','2w':'أسبوعين','1m':'شهر','2m':'شهرين','3m':'3 شهور','6m':'6 شهور','1y':'سنة'};
+const DUR_NAMES = {'1w':'أسبوع','2w':'أسبوعين','1m':'شهر','2m':'شهرين','3m':'3 شهور','6m':'6 شهور','1y':'سنة','life':'مدى الحياة'};
 async function api(path, opts){
   opts = opts || {};
   opts.headers = Object.assign({'Content-Type':'application/json','x-admin-token':at}, opts.headers||{});
@@ -361,7 +362,8 @@ async function loadUsers(){
   if(r.status!==200){ document.getElementById('panel').classList.add('hidden'); document.getElementById('loginCard').classList.remove('hidden'); return; }
   const rows = r.body.users.map(u=>{
     const st = u.active ? '<span class="badge on">فعّال</span>' : '<span class="badge off">'+(u.status==='cancelled'?'ملغي':'منتهي')+'</span>';
-    return '<tr><td><b>'+esc(u.username)+'</b></td><td>'+(DUR_NAMES[u.plan]||u.plan)+'</td><td>'+st+'</td><td>'+u.daysLeft+' يوم</td><td>'+fmt(u.expiresAt)+'</td>'+
+    const life = u.plan==='life';
+    return '<tr><td><b>'+esc(u.username)+'</b></td><td>'+(DUR_NAMES[u.plan]||u.plan)+'</td><td>'+st+'</td><td>'+(life?'♾️':u.daysLeft+' يوم')+'</td><td>'+(life?'مدى الحياة':fmt(u.expiresAt))+'</td>'+
     '<td><button class="ghost" onclick="act(\''+u.id+'\',\'extend\')">تمديد</button>'+
     (u.status==='active' ? '<button class="danger" onclick="act(\''+u.id+'\',\'cancel\')">إلغاء</button>' : '<button class="ghost" onclick="act(\''+u.id+'\',\'reactivate\')">تفعيل</button>')+
     '<button class="danger" onclick="act(\''+u.id+'\',\'DELETE\')">مسح</button></td></tr>';

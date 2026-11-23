@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sense by Shafiq</title>
+<style>
+:root{--bg:#0b0e17;--card:#151a2a;--card2:#1c2338;--acc:#ff7a1a;--acc2:#ffd23f;--txt:#eef1f8;--mut:#8b93ad;--ok:#3ddc84;--bad:#ff5470}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,sans-serif}
+body{background:radial-gradient(1200px 600px at 50% -10%,#1b2440 0%,var(--bg) 60%);color:var(--txt);min-height:100vh}
+.wrap{max-width:520px;margin:0 auto;padding:18px 16px 40px}
+.logo{text-align:center;padding:26px 0 8px}
+.logo h1{font-size:30px;letter-spacing:1px}
+.logo h1 b{color:var(--acc)}
+.logo p{color:var(--mut);font-size:13px;margin-top:4px}
+.card{background:var(--card);border:1px solid #232c47;border-radius:16px;padding:18px;margin-top:16px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+input,select{width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a3452;background:var(--card2);color:var(--txt);font-size:15px;margin-top:10px}
+button{width:100%;padding:14px;border:0;border-radius:12px;background:linear-gradient(90deg,var(--acc),#ff9d4d);color:#1a1206;font-weight:700;font-size:16px;margin-top:14px;cursor:pointer}
+button.ghost{background:var(--card2);color:var(--txt);border:1px solid #2a3452}
+.err{color:var(--bad);font-size:13px;margin-top:10px;text-align:center;min-height:16px}
+.badge{display:inline-block;background:var(--card2);border:1px solid #2a3452;border-radius:999px;padding:4px 12px;font-size:12px;color:var(--mut)}
+.badge.on{color:var(--ok);border-color:#1f5c40}
+.badge.off{color:var(--bad);border-color:#5c1f2c}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.stat{background:var(--card2);border-radius:12px;padding:12px;text-align:center;border:1px solid #232c47}
+.stat .v{font-size:22px;font-weight:800;color:var(--acc2)}
+.stat .k{font-size:12px;color:var(--mut);margin-top:2px}
+.dpi-hero{background:linear-gradient(135deg,#2a1a08,#1a1206);border:1px solid #6b4213;border-radius:16px;padding:18px;text-align:center;margin-top:16px}
+.dpi-hero .num{font-size:44px;font-weight:900;color:var(--acc)}
+.dpi-hero .lbl{color:var(--mut);font-size:13px}
+.tips{background:#12233a;border:1px solid #1e3a5c;border-radius:12px;padding:12px;font-size:13px;line-height:1.8;color:#bcd7f5;margin-top:12px}
+.hrow{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+.hrow h2{font-size:17px}
+a.link{color:var(--acc);font-size:13px;cursor:pointer}
+.hidden{display:none}
+.note{font-size:12px;color:var(--mut);text-align:center;margin-top:10px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">
+    <h1>SENSE <b>by Shafiq</b></h1>
+    <p>أحسن إعدادات وحساسية و DPI لفري فاير حسب موبايلك</p>
+  </div>
+
+  <!-- login -->
+  <div id="loginView" class="card">
+    <h2 style="font-size:17px">تسجيل الدخول</h2>
+    <input id="u" placeholder="اسم المستخدم" autocomplete="username">
+    <input id="p" type="password" placeholder="كلمة السر" autocomplete="current-password">
+    <div class="err" id="loginErr"></div>
+    <button onclick="doLogin()">دخول</button>
+    <div class="note">ليس لديك حساب؟ تواصل مع البائع اللي اشتريت منه.</div>
+  </div>
+
+  <!-- app -->
+  <div id="appView" class="hidden">
+    <div class="hrow">
+      <h2 id="hello">أهلًا</h2>
+      <span class="badge" id="subBadge"></span>
+    </div>
+
+    <div class="card" id="deviceCard">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;color:var(--mut)">موبايلك</div>
+          <div id="devName" style="font-size:17px;font-weight:700"></div>
+        </div>
+        <span class="badge" id="matchBadge"></span>
+      </div>
+      <div class="dpi-hero">
+        <div class="num" id="dpi">-</div>
+        <div class="lbl">DPI المقترح</div>
+      </div>
+      <div class="grid">
+        <div class="stat"><div class="v" id="sGeneral">-</div><div class="k">الحساسية العامة</div></div>
+        <div class="stat"><div class="v" id="sRed">-</div><div class="k">ريد دوت</div></div>
+        <div class="stat"><div class="v" id="s2x">-</div><div class="k">سكوب 2x</div></div>
+        <div class="stat"><div class="v" id="s4x">-</div><div class="k">سكوب 4x</div></div>
+        <div class="stat"><div class="v" id="sSniper">-</div><div class="k">سنايبر</div></div>
+        <div class="stat"><div class="v" id="sFree">-</div><div class="k">النظرة الحرة</div></div>
+      </div>
+      <div class="grid">
+        <div class="stat"><div class="v" id="fps" style="font-size:15px">-</div><div class="k">الفريمات</div></div>
+        <div class="stat"><div class="v" id="gfx" style="font-size:15px">-</div><div class="k">الجرافيك</div></div>
+      </div>
+      <div class="tips" id="tips"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:15px">دوّر على موبايل تاني</h2>
+      <input id="q" placeholder="اكتب الموديل... مثال: Redmi Note 13">
+      <button class="ghost" onclick="lookup()">عرض الإعدادات</button>
+    </div>
+
+    <button class="ghost" onclick="doLogout()">تسجيل خروج</button>
+    <div class="note">Sense by Shafiq — النتائج توصيات مقترحة، جرّبها في التدريب وظبطها على راحتك.</div>
+  </div>
+
+  <!-- blocked -->
+  <div id="blockedView" class="card hidden" style="text-align:center">
+    <h2 style="color:var(--bad)">الاشتراك غير فعّال</h2>
+    <p style="color:var(--mut);font-size:14px;margin-top:8px;line-height:1.8" id="blockedMsg">اشتراكك خلص أو اتلغى. تواصل مع البائع عشان تجدد.</p>
+    <button class="ghost" onclick="doLogout()">رجوع</button>
+  </div>
+</div>
+
+<script>
+let token = localStorage.getItem('ff_token') || '';
+function devInfo(){
+  try{
+    if(window.AndroidBridge){
+      return { model: AndroidBridge.getModel(), brand: AndroidBridge.getManufacturer(), hz: Math.round(AndroidBridge.getRefreshRate()) };
+    }
+  }catch(e){}
+  return { model:'', brand:'', hz:0 };
+}
+async function api(path, opts){
+  opts = opts || {};
+  opts.headers = Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+token}, opts.headers||{});
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(()=>({}));
+  return { status:r.status, body:j };
+}
+function show(id){
+  ['loginView','appView','blockedView'].forEach(v=>document.getElementById(v).classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+async function doLogin(){
+  const u=document.getElementById('u').value.trim(), p=document.getElementById('p').value;
+  document.getElementById('loginErr').textContent='';
+  const r = await api('/api/login',{method:'POST',body:JSON.stringify({username:u,password:p})});
+  if(r.status!==200){ document.getElementById('loginErr').textContent='بيانات الدخول غلط، تأكد وحاول تاني'; return; }
+  token = r.body.token; localStorage.setItem('ff_token', token);
+  boot();
+}
+async function doLogout(){
+  await api('/api/logout',{method:'POST'});
+  token=''; localStorage.removeItem('ff_token'); show('loginView');
+}
+async function lookup(model){
+  const m = model || document.getElementById('q').value.trim();
+  if(!m) return;
+  const r = await api('/api/device?model='+encodeURIComponent(m));
+  if(r.status===403){ show('blockedView'); return; }
+  if(r.status!==200) return;
+  render(r.body);
+}
+function render(d){
+  const dev = d.device;
+  document.getElementById('devName').textContent = dev.name;
+  const mb = document.getElementById('matchBadge');
+  if(d.matchType==='exact'){ mb.textContent='موديل معروف'; mb.className='badge on'; }
+  else if(d.matchType==='brand'){ mb.textContent='حسب الفئة'; mb.className='badge'; }
+  else { mb.textContent='إعدادات عامة'; mb.className='badge'; }
+  document.getElementById('dpi').textContent = dev.dpi;
+  document.getElementById('sGeneral').textContent = dev.sens.general;
+  document.getElementById('sRed').textContent = dev.sens.redDot;
+  document.getElementById('s2x').textContent = dev.sens.scope2x;
+  document.getElementById('s4x').textContent = dev.sens.scope4x;
+  document.getElementById('sSniper').textContent = dev.sens.sniper;
+  document.getElementById('sFree').textContent = dev.sens.freeLook;
+  document.getElementById('fps').textContent = dev.fps;
+  document.getElementById('gfx').textContent = dev.graphics;
+  document.getElementById('tips').textContent = dev.tips || '';
+}
+async function boot(){
+  if(!token){ show('loginView'); return; }
+  const me = await api('/api/me');
+  if(me.status!==200){ token=''; localStorage.removeItem('ff_token'); show('loginView'); return; }
+  const u = me.body.user;
+  if(!u.active){ show('blockedView'); return; }
+  document.getElementById('hello').textContent = 'أهلًا '+u.username;
+  const b = document.getElementById('subBadge');
+  b.textContent = 'متبقي '+u.daysLeft+' يوم';
+  b.className = 'badge ' + (u.daysLeft<=3?'off':'on');
+  show('appView');
+  const di = devInfo();
+  const model = di.model || (di.brand||'');
+  if(model){ lookup(model + (di.hz ? ' '+di.hz+'hz' : '')); }
+}
+boot();
+</script>
+</body>
+</html>

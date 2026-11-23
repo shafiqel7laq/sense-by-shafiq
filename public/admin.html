@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة تحكم Sense by Shafiq</title>
+<style>
+:root{--bg:#0b0e17;--card:#151a2a;--card2:#1c2338;--acc:#ff7a1a;--txt:#eef1f8;--mut:#8b93ad;--ok:#3ddc84;--bad:#ff5470}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,sans-serif}
+body{background:var(--bg);color:var(--txt);min-height:100vh}
+.wrap{max-width:760px;margin:0 auto;padding:18px 14px 50px}
+h1{font-size:22px;padding:14px 0}
+h1 b{color:var(--acc)}
+.card{background:var(--card);border:1px solid #232c47;border-radius:14px;padding:16px;margin-top:14px}
+input,select{padding:11px 12px;border-radius:10px;border:1px solid #2a3452;background:var(--card2);color:var(--txt);font-size:14px;margin:4px 2px}
+button{padding:10px 16px;border:0;border-radius:10px;background:var(--acc);color:#1a1206;font-weight:700;cursor:pointer;margin:4px 2px}
+button.ghost{background:var(--card2);color:var(--txt);border:1px solid #2a3452}
+button.danger{background:#3a1520;color:var(--bad)}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+th,td{padding:9px 8px;border-bottom:1px solid #232c47;text-align:right}
+th{color:var(--mut);font-weight:600}
+.badge{display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px}
+.on{color:var(--ok);background:#0f2b1e}.off{color:var(--bad);background:#2b0f16}
+.err{color:var(--bad);font-size:13px;min-height:16px}
+.row{display:flex;flex-wrap:wrap;align-items:center}
+.hidden{display:none}
+.mut{color:var(--mut);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>لوحة تحكم <b>Sense by Shafiq</b></h1>
+
+  <div id="loginCard" class="card">
+    <h2 style="font-size:16px">دخول الأدمن</h2>
+    <div class="row">
+      <input id="apw" type="password" placeholder="كلمة سر الأدمن">
+      <button onclick="adminLogin()">دخول</button>
+    </div>
+    <div class="err" id="aerr"></div>
+  </div>
+
+  <div id="panel" class="hidden">
+    <div class="card">
+      <h2 style="font-size:16px">إضافة زبون جديد</h2>
+      <div class="row">
+        <input id="nu" placeholder="اسم المستخدم">
+        <input id="np" placeholder="كلمة السر">
+        <select id="nd">
+          <option value="1w">أسبوع</option>
+          <option value="2w">أسبوعين</option>
+          <option value="1m" selected>شهر</option>
+          <option value="2m">شهرين</option>
+          <option value="3m">3 شهور</option>
+          <option value="6m">6 شهور</option>
+          <option value="1y">سنة</option>
+        </select>
+        <button onclick="addUser()">إضافة</button>
+      </div>
+      <div class="err" id="addErr"></div>
+      <div class="mut">بعد الإضافة ابعت للزبون اسم المستخدم وكلمة السر ورابط التطبيق.</div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="font-size:16px">الزبائن</h2>
+        <button class="ghost" onclick="loadUsers()">تحديث</button>
+        <button class="ghost" onclick="exp()">تصدير نسخة احتياطية</button>
+        <button class="ghost" onclick="document.getElementById('imp').click()">استيراد</button>
+        <input id="imp" type="file" accept=".json" style="display:none" onchange="imp(this)">
+      </div>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>المستخدم</th><th>الخطة</th><th>الحالة</th><th>متبقي</th><th>ينتهي</th><th>إجراءات</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+let at = sessionStorage.getItem('ff_admin') || '';
+const DUR_NAMES = {'1w':'أسبوع','2w':'أسبوعين','1m':'شهر','2m':'شهرين','3m':'3 شهور','6m':'6 شهور','1y':'سنة'};
+async function api(path, opts){
+  opts = opts || {};
+  opts.headers = Object.assign({'Content-Type':'application/json','x-admin-token':at}, opts.headers||{});
+  const r = await fetch(path, opts);
+  return { status:r.status, body: await r.json().catch(()=>({})) };
+}
+async function adminLogin(){
+  const pw = document.getElementById('apw').value;
+  const r = await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+  if(r.status!==200){ document.getElementById('aerr').textContent='كلمة السر غلط'; return; }
+  at = (await r.json()).token;
+  sessionStorage.setItem('ff_admin', at);
+  document.getElementById('loginCard').classList.add('hidden');
+  document.getElementById('panel').classList.remove('hidden');
+  loadUsers();
+}
+async function addUser(){
+  document.getElementById('addErr').textContent='';
+  const body = { username: document.getElementById('nu').value, password: document.getElementById('np').value, duration: document.getElementById('nd').value };
+  const r = await api('/api/admin/users',{method:'POST',body:JSON.stringify(body)});
+  if(r.status===409){ document.getElementById('addErr').textContent='اسم المستخدم ده موجود قبل كده'; return; }
+  if(r.status!==201){ document.getElementById('addErr').textContent='تأكد من البيانات (اسم 3 حروف على الأقل، سر 4 على الأقل)'; return; }
+  document.getElementById('nu').value=''; document.getElementById('np').value='';
+  loadUsers();
+}
+async function act(id, action, method){
+  let body = null;
+  if(action==='extend'){
+    const d = prompt('مدة التمديد: 1w أسبوع / 2w أسبوعين / 1m شهر / 2m / 3m / 6m / 1y أو عدد أيام');
+    if(!d) return;
+    body = JSON.stringify({duration:d});
+  }
+  if(action==='DELETE' && !confirm('متأكد إنك عايز تمسح الزبون ده نهائيًا؟')) return;
+  const r = await api('/api/admin/users/'+id+(action==='DELETE'?'':'/'+action), {method: action==='DELETE'?'DELETE':'POST', body});
+  loadUsers();
+}
+function fmt(ts){ return new Date(ts).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}); }
+async function loadUsers(){
+  const r = await api('/api/admin/users');
+  if(r.status!==200){ document.getElementById('panel').classList.add('hidden'); document.getElementById('loginCard').classList.remove('hidden'); return; }
+  const rows = r.body.users.map(u=>{
+    const st = u.active ? '<span class="badge on">فعّال</span>' : '<span class="badge off">'+(u.status==='cancelled'?'ملغي':'منتهي')+'</span>';
+    return '<tr><td><b>'+esc(u.username)+'</b></td><td>'+(DUR_NAMES[u.plan]||u.plan)+'</td><td>'+st+'</td><td>'+u.daysLeft+' يوم</td><td>'+fmt(u.expiresAt)+'</td>'+
+    '<td><button class="ghost" onclick="act(\''+u.id+'\',\'extend\')">تمديد</button>'+
+    (u.status==='active' ? '<button class="danger" onclick="act(\''+u.id+'\',\'cancel\')">إلغاء</button>' : '<button class="ghost" onclick="act(\''+u.id+'\',\'reactivate\')">تفعيل</button>')+
+    '<button class="danger" onclick="act(\''+u.id+'\',\'DELETE\')">مسح</button></td></tr>';
+  }).join('');
+  document.getElementById('rows').innerHTML = rows || '<tr><td colspan="6" class="mut">مفيش زبائن لسه</td></tr>';
+}
+async function exp(){
+  const r = await api('/api/admin/export');
+  const blob = new Blob([JSON.stringify(r.body,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'sense-backup.json'; a.click();
+}
+async function imp(inp){
+  if(!inp.files[0]) return;
+  const txt = await inp.files[0].text();
+  try{ const j = JSON.parse(txt);
+    const r = await api('/api/admin/import',{method:'POST',body:JSON.stringify(j)});
+    alert('اتستورد ' + (r.body.imported||0) + ' زبون');
+    loadUsers();
+  }catch(e){ alert('ملف غير صالح'); }
+  inp.value='';
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); }
+</script>
+</body>
+</html>

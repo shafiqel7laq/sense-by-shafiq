@@ -39,6 +39,18 @@ async function notifMsg() {
     text: (n && n.text) || "تعالى جرّب السيت الجديد وافشخ أصحابك، خليهم يقولوا عليك مفعّل 😈"
   };
 }
+const DKEYS = Object.keys(DURATIONS);
+async function paymentInfo() {
+  const p = (await get("meta/payment")) || {};
+  return { method: p.method || "فودافون كاش", number: p.number || "", prices: p.prices || {} };
+}
+async function myRenewals(userId) {
+  const keys = await listPrefix("renewals/");
+  const out = [];
+  for (const k of keys) { const r = await get(k); if (r && r.userId === userId) out.push(r); }
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return out;
+}
 async function pwMatch(pw, storedHash) {
   const cands = [normPw(pw)];
   const raw = String(pw ?? "");
@@ -146,6 +158,30 @@ export default async (req) => {
       if (!s) return json({ error: "unauthorized" }, 401);
       return json({ models: listModels() });
     }
+    if (p === "/api/renewal/info" && req.method === "GET") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      return json({ payment: await paymentInfo(), durations: DKEYS });
+    }
+    if (p === "/api/renewal" && req.method === "POST") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const { duration } = await req.json();
+      const days = durationDays(duration);
+      if (!days) return json({ error: "bad_duration" }, 400);
+      const mine = await myRenewals(s.user.id);
+      const pending = mine.find(r => r.status === "pending");
+      if (pending) return json({ request: pending });
+      const r = { id: rid(), userId: s.user.id, username: s.user.username, plan: duration, status: "pending", createdAt: Date.now(), resolvedAt: 0 };
+      await set("renewals/" + r.id, r);
+      return json({ request: r }, 201);
+    }
+    if (p === "/api/renewal/mine" && req.method === "GET") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const mine = await myRenewals(s.user.id);
+      return json({ request: mine[0] || null });
+    }
     if (p === "/api/updates" && req.method === "GET") {
       const s = await getSession(req);
       if (!s) return json({ error: "unauthorized" }, 401);
@@ -155,7 +191,12 @@ export default async (req) => {
       if (!key) { const m = url.searchParams.get("model") || ""; key = (matchDevice(m).key) || "generic"; }
       const arr = await getSets(key);
       const latest = arr.reduce((a, x) => Math.max(a, x.updatedAt || 0), 0);
-      return json({ key, latest, ...(await notifMsg()) });
+      const mine = await myRenewals(s.user.id);
+      const approved = mine.find(r => r.status === "approved");
+      return json({ key, latest, ...(await notifMsg()),
+        renewalApprovedAt: approved ? approved.resolvedAt : 0,
+        renewalTitle: "تم قبول التجديد ✅",
+        renewalText: "اشتراكك اتمدد بنجاح — كمل فشخ يا وحش 🔥" });
     }
     if (p === "/api/admin/login" && req.method === "POST") {
       const { password } = await req.json();
@@ -203,6 +244,46 @@ export default async (req) => {
         const u = { id: rid(), username: uname, salt, hash: await hashPassword(npw, salt), plan: duration, createdAt: Date.now(), expiresAt: Date.now() + days * 86400000, status: "active" };
         await putUser(u);
         return json({ user: publicUser(u) }, 201);
+      }
+      if (p === "/api/admin/renewals" && req.method === "GET") {
+        const keys = await listPrefix("renewals/");
+        const out = [];
+        for (const k of keys) { const r = await get(k); if (r) out.push(r); }
+        out.sort((a, b) => b.createdAt - a.createdAt);
+        return json({ requests: out.slice(0, 100) });
+      }
+      if (p === "/api/admin/renewals/approve" && req.method === "POST") {
+        const { id } = await req.json();
+        const r = await get("renewals/" + id);
+        if (!r) return json({ error: "not_found" }, 404);
+        if (r.status !== "pending") return json({ error: "already_resolved" }, 400);
+        const u = await get("users/" + r.userId);
+        if (!u) return json({ error: "user_not_found" }, 404);
+        const days = durationDays(r.plan) || 30;
+        u.expiresAt = Math.max(Date.now(), u.expiresAt) + days * 86400000;
+        u.plan = r.plan; u.status = "active";
+        await putUser(u);
+        r.status = "approved"; r.resolvedAt = Date.now();
+        await set("renewals/" + r.id, r);
+        return json({ request: r, user: publicUser(u) });
+      }
+      if (p === "/api/admin/renewals/reject" && req.method === "POST") {
+        const { id } = await req.json();
+        const r = await get("renewals/" + id);
+        if (!r) return json({ error: "not_found" }, 404);
+        r.status = "rejected"; r.resolvedAt = Date.now();
+        await set("renewals/" + r.id, r);
+        return json({ request: r });
+      }
+      if (p === "/api/admin/payment" && req.method === "GET") {
+        return json({ payment: await paymentInfo() });
+      }
+      if (p === "/api/admin/payment" && req.method === "POST") {
+        const b = await req.json();
+        const v = { method: String(b.method || "").slice(0, 60), number: String(b.number || "").slice(0, 40), prices: {} };
+        for (const k of DKEYS) { if (b.prices && b.prices[k] != null) v.prices[k] = String(b.prices[k]).slice(0, 20); }
+        await set("meta/payment", v);
+        return json({ payment: v });
       }
       if (p === "/api/admin/modelslist" && req.method === "GET") {
         return json({ models: listModels() });

@@ -64,6 +64,8 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
       <h2 id="hello">أهلًا</h2>
       <span class="badge" id="subBadge"></span>
     </div>
+    <button onclick="openRenew()">جدد اشتراكك 🔄</button>
+    <div id="renewStatusApp" class="note"></div>
 
     <div class="card" id="deviceCard">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -115,8 +117,20 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
   <!-- blocked -->
   <div id="blockedView" class="card hidden" style="text-align:center">
     <h2 style="color:var(--bad)">الاشتراك غير فعّال</h2>
-    <p style="color:var(--mut);font-size:14px;margin-top:8px;line-height:1.8" id="blockedMsg">اشتراكك خلص أو اتلغى. تواصل مع البائع عشان تجدد.</p>
+    <p style="color:var(--mut);font-size:14px;margin-top:8px;line-height:1.8" id="blockedMsg">اشتراكك خلص أو اتلغى. جدد من هنا مباشرة:</p>
+    <button onclick="openRenew()">جدد اشتراكك 🔄</button>
+    <div id="renewStatusBlocked" class="note"></div>
     <button class="ghost" onclick="doLogout()">رجوع</button>
+  </div>
+
+  <!-- renewal -->
+  <div id="renewView" class="card hidden">
+    <div class="hrow"><h2>تجديد الاشتراك</h2><a class="link" onclick="closeRenew()">رجوع</a></div>
+    <div id="payInfo" style="background:var(--card2);border:1px solid #2a3452;border-radius:12px;padding:12px;margin-top:10px;font-size:14px;line-height:2"></div>
+    <div id="durList"></div>
+    <div class="err" id="renewErr"></div>
+    <button id="sentBtn" onclick="submitRenew()">بعتت الفلوس ✅</button>
+    <div class="note">بعد الضغط، الأدمن يراجع التحويل ويفعّل التجديد — هتشوف الحالة هنا وهيوصلك إشعار.</div>
   </div>
 </div>
 
@@ -196,17 +210,60 @@ function render(d){
     }
   }catch(e){}
 }
+let renewSel = '1m';
+async function openRenew(){
+  document.getElementById('renewErr').textContent='';
+  const r = await api('/api/renewal/info');
+  if(r.status!==200){ return; }
+  const pay = r.body.payment || {};
+  const NAMES = {'1w':'أسبوع','2w':'أسبوعين','1m':'شهر','2m':'شهرين','3m':'3 شهور','6m':'6 شهور','1y':'سنة'};
+  document.getElementById('payInfo').innerHTML = 'حوّل على: <b style="color:var(--acc2)">'+(pay.method||'')+'</b>' +
+    (pay.number ? '<br>الرقم: <b style="color:var(--acc2);font-size:17px" id="payNum">'+pay.number+'</b> <a class="link" onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+pay.number+'\')">نسخ</a>' : '<br><span class="mut">(البائع لسه مضيفش رقمه — كلمه)</span>');
+  document.getElementById('durList').innerHTML = (r.body.durations||[]).map(function(d){
+    const pr = (pay.prices && pay.prices[d]) ? pay.prices[d] : '—';
+    return '<div class="krow" style="cursor:pointer" onclick="pickDur(this,\''+d+'\')"><div style="flex:1"><div class="k">'+NAMES[d]+'</div></div><div class="v">'+pr+'</div></div>';
+  }).join('');
+  pickDur(null, '1m');
+  ['loginView','appView','blockedView'].forEach(v=>document.getElementById(v).classList.add('hidden'));
+  document.getElementById('renewView').classList.remove('hidden');
+}
+function pickDur(el, d){
+  renewSel = d;
+  [...document.querySelectorAll('#durList .krow')].forEach(x=>x.style.background='');
+  if(el){ el.style.background='#1c2338'; }
+  else { const rows=[...document.querySelectorAll('#durList .krow')]; const i={'1w':0,'2w':1,'1m':2,'2m':3,'3m':4,'6m':5,'1y':6}[d]; if(rows[i]) rows[i].style.background='#1c2338'; }
+}
+async function submitRenew(){
+  document.getElementById('renewErr').textContent='';
+  const r = await api('/api/renewal',{method:'POST',body:JSON.stringify({duration:renewSel})});
+  if(r.status===200 || r.status===201){ showRenewStatus('طلبك وصل ⏳ الأدمن بيراجع التحويل، وهيوصلك إشعار أول ما يتقبل.'); boot(); return; }
+  document.getElementById('renewErr').textContent='حصل خطأ، جرب تاني';
+}
+function closeRenew(){ document.getElementById('renewView').classList.add('hidden'); boot(); }
+function showRenewStatus(msg){
+  const a=document.getElementById('renewStatusApp'); if(a) a.textContent=msg;
+  const b=document.getElementById('renewStatusBlocked'); if(b) b.textContent=msg;
+}
+async function checkMine(){
+  const r = await api('/api/renewal/mine');
+  if(r.status!==200 || !r.body.request) return;
+  const q = r.body.request;
+  if(q.status==='pending') showRenewStatus('⏳ طلب تجديدك قيد المراجعة');
+  else if(q.status==='approved') showRenewStatus('✅ تجديدك اتقبل، اشتراكك اتمدد');
+  else if(q.status==='rejected') showRenewStatus('❌ طلب التجديد اترفض — كلم البائع');
+}
 async function boot(){
   if(!token){ show('loginView'); return; }
   const me = await api('/api/me');
   if(me.status!==200){ token=''; localStorage.removeItem('ff_token'); show('loginView'); return; }
   const u = me.body.user;
-  if(!u.active){ show('blockedView'); return; }
+  if(!u.active){ show('blockedView'); checkMine(); return; }
   document.getElementById('hello').textContent = 'أهلًا '+u.username;
   const b = document.getElementById('subBadge');
   b.textContent = 'متبقي '+u.daysLeft+' يوم';
   b.className = 'badge ' + (u.daysLeft<=3?'off':'on');
   show('appView');
+  checkMine();
   const di = devInfo();
   const model = di.model || (di.brand||'');
   if(model){ lookup(model + (di.hz ? ' '+di.hz+'hz' : '')); }

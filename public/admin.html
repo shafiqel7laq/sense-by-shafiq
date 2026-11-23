@@ -107,6 +107,39 @@ th{color:var(--mut);font-weight:600}
     </div>
 
     <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="font-size:16px">طلبات التجديد</h2>
+        <button class="ghost" onclick="loadRenewals()">تحديث</button>
+      </div>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>العميل</th><th>المدة</th><th>التاريخ</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <tbody id="rrows"></tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:16px">إعدادات الدفع (بتظهر للعميل عند التجديد)</h2>
+      <div class="row">
+        <input id="pmethod" placeholder="وسيلة الدفع (مثال: فودافون كاش)" style="min-width:200px">
+        <input id="pnumber" placeholder="الرقم" style="min-width:150px">
+      </div>
+      <div class="mut">الأسعار بالجنيه لكل مدة:</div>
+      <div class="row">
+        <input id="pr1w" placeholder="أسبوع" style="width:75px">
+        <input id="pr2w" placeholder="أسبوعين" style="width:75px">
+        <input id="pr1m" placeholder="شهر" style="width:75px">
+        <input id="pr2m" placeholder="شهرين" style="width:75px">
+        <input id="pr3m" placeholder="3 شهور" style="width:80px">
+        <input id="pr6m" placeholder="6 شهور" style="width:80px">
+        <input id="pr1y" placeholder="سنة" style="width:75px">
+      </div>
+      <div class="row"><button onclick="savePayment()">حفظ إعدادات الدفع</button></div>
+      <div class="err" id="payErr"></div>
+    </div>
+
+    <div class="card">
       <h2 style="font-size:16px">نص إشعار التحديث اليومي</h2>
       <div class="row"><input id="ntitle" placeholder="عنوان الإشعار" style="min-width:280px"></div>
       <div class="row"><input id="ntext" placeholder="نص الإشعار" style="min-width:280px"></div>
@@ -134,7 +167,7 @@ async function adminLogin(){
   sessionStorage.setItem('ff_admin', at);
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('panel').classList.remove('hidden');
-  loadUsers(); loadModels(); loadNotif();
+  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment();
 }
 async function addUser(){
   document.getElementById('addErr').textContent='';
@@ -210,6 +243,38 @@ async function delSet(id){
   await api('/api/admin/sets/delete',{method:'POST',body:JSON.stringify({model:document.getElementById('smodel').value,id:id})});
   loadSets();
 }
+async function loadRenewals(){
+  const r = await api('/api/admin/renewals');
+  if(r.status!==200) return;
+  const ST = {pending:'<span class="badge off" style="color:var(--acc)">قيد المراجعة</span>', approved:'<span class="badge on">مقبول</span>', rejected:'<span class="badge off">مرفوض</span>'};
+  document.getElementById('rrows').innerHTML = (r.body.requests||[]).map(function(q){
+    const act = q.status==='pending'
+      ? '<button onclick="renAct(\''+q.id+'\',\'approve\')">قبول</button><button class="danger" onclick="renAct(\''+q.id+'\',\'reject\')">رفض</button>'
+      : '';
+    return '<tr><td><b>'+esc(q.username)+'</b></td><td>'+(DUR_NAMES[q.plan]||q.plan)+'</td><td>'+fmt(q.createdAt)+'</td><td>'+(ST[q.status]||q.status)+'</td><td>'+act+'</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="mut">مفيش طلبات لسه</td></tr>';
+}
+async function renAct(id, a){
+  if(a==='approve' && !confirm('الموافقة هتمدد اشتراك العميل تلقائي. متأكد؟')) return;
+  await api('/api/admin/renewals/'+a,{method:'POST',body:JSON.stringify({id:id})});
+  loadRenewals(); loadUsers();
+}
+async function loadPayment(){
+  const r = await api('/api/admin/payment');
+  if(r.status!==200) return;
+  const p = r.body.payment||{};
+  document.getElementById('pmethod').value = p.method||'';
+  document.getElementById('pnumber').value = p.number||'';
+  ['1w','2w','1m','2m','3m','6m','1y'].forEach(function(k){ document.getElementById('pr'+k).value = (p.prices&&p.prices[k])||''; });
+}
+async function savePayment(){
+  const prices = {};
+  ['1w','2w','1m','2m','3m','6m','1y'].forEach(function(k){ const v=document.getElementById('pr'+k).value.trim(); if(v) prices[k]=v; });
+  const r = await api('/api/admin/payment',{method:'POST',body:JSON.stringify({method:document.getElementById('pmethod').value.trim(),number:document.getElementById('pnumber').value.trim(),prices:prices})});
+  const e = document.getElementById('payErr');
+  if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); }
+  else { e.textContent='حصل خطأ أثناء الحفظ'; }
+}
 async function loadNotif(){
   const r = await api('/api/admin/notiftext');
   if(r.status!==200) return;
@@ -250,7 +315,7 @@ async function imp(inp){
   inp.value='';
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); }
+if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); }
 </script>
 </body>
 </html>

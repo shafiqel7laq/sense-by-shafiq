@@ -72,6 +72,7 @@ th{color:var(--mut);font-weight:600}
         <input id="np" dir="ltr" class="ltr" placeholder="كلمة السر">
         <input id="nref" dir="ltr" class="ltr" placeholder="كود إحالة (اختياري)" style="max-width:140px">
         <select id="nd">
+          <option value="1d">يوم واحد</option>
           <option value="1w">أسبوع</option>
           <option value="2w">أسبوعين</option>
           <option value="1m" selected>شهر</option>
@@ -150,6 +151,7 @@ th{color:var(--mut);font-weight:600}
       </div>
       <div class="mut">الأسعار بالجنيه لكل مدة:</div>
       <div class="row">
+        <input id="pr1d" placeholder="يوم" style="width:70px">
         <input id="pr1w" placeholder="أسبوع" style="width:75px">
         <input id="pr2w" placeholder="أسبوعين" style="width:75px">
         <input id="pr1m" placeholder="شهر" style="width:75px">
@@ -244,7 +246,7 @@ th{color:var(--mut);font-weight:600}
 <script>
 let at = sessionStorage.getItem('ff_admin') || '';
 let curSets = [];
-const DUR_NAMES = {'1w':'أسبوع','2w':'أسبوعين','1m':'شهر','life':'مدى الحياة'};
+const DUR_NAMES = {'1d':'يوم واحد','1w':'أسبوع','2w':'أسبوعين','1m':'شهر','life':'مدى الحياة'};
 async function api(path, opts){
   opts = opts || {};
   opts.headers = Object.assign({'Content-Type':'application/json','x-admin-token':at}, opts.headers||{});
@@ -292,7 +294,7 @@ async function addUser(){
 async function act(id, action, method){
   let body = null;
   if(action==='extend'){
-    const d = prompt('مدة التمديد: 1w أسبوع / 2w أسبوعين / 1m شهر / life مدى الحياة');
+    const d = prompt('مدة التمديد: 1d يوم / 1w أسبوع / 2w أسبوعين / 1m شهر / life مدى الحياة');
     if(!d) return;
     body = JSON.stringify({duration:d});
   }
@@ -378,11 +380,11 @@ async function loadPayment(){
   const p = r.body.payment||{};
   document.getElementById('pmethod').value = p.method||'';
   document.getElementById('pnumber').value = p.number||'';
-  ['1w','2w','1m','life'].forEach(function(k){ document.getElementById('pr'+k).value = (p.prices&&p.prices[k])||''; });
+  ['1d','1w','2w','1m','life'].forEach(function(k){ document.getElementById('pr'+k).value = (p.prices&&p.prices[k])||''; });
 }
 async function savePayment(){
   const prices = {};
-  ['1w','2w','1m','life'].forEach(function(k){ const v=document.getElementById('pr'+k).value.trim(); if(v) prices[k]=v; });
+  ['1d','1w','2w','1m','life'].forEach(function(k){ const v=document.getElementById('pr'+k).value.trim(); if(v) prices[k]=v; });
   const r = await api('/api/admin/payment',{method:'POST',body:JSON.stringify({method:document.getElementById('pmethod').value.trim(),number:document.getElementById('pnumber').value.trim(),prices:prices})});
   const e = document.getElementById('payErr');
   if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); }

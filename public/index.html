@@ -416,7 +416,7 @@ async function openRenew(){
   if(r.status!==200){ return; }
   const pay = r.body.payment || {};
   payPrices = pay.prices || {};
-  const NAMES = {'1w':'أسبوع','2w':'أسبوعين','1m':'شهر','life':'مدى الحياة ♾️'};
+  const NAMES = {'1d':'يوم واحد','1w':'أسبوع','2w':'أسبوعين','1m':'شهر','life':'مدى الحياة ♾️'};
   document.getElementById('payInfo').innerHTML = 'حوّل على: <b style="color:var(--acc2)">'+(pay.method||'')+'</b>' +
     (pay.number ? '<br>الرقم: <b style="color:var(--acc2);font-size:17px" id="payNum">'+pay.number+'</b> <a class="link" onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+pay.number+'\')">نسخ</a>' : '<br><span class="mut">(البائع لسه مضيفش رقمه — كلمه)</span>');
   document.getElementById('durList').innerHTML = (r.body.durations||[]).map(function(d){
@@ -434,7 +434,7 @@ function pickDur(el, d){
   renewSel = d;
   [...document.querySelectorAll('#durList .krow')].forEach(x=>x.style.background='');
   if(el){ el.style.background='#1c2338'; }
-  else { const rows=[...document.querySelectorAll('#durList .krow')]; const i={'1w':0,'2w':1,'1m':2,'life':3}[d]; if(rows[i]) rows[i].style.background='#1c2338'; }
+  else { const rows=[...document.querySelectorAll('#durList .krow')]; const i={'1d':0,'1w':1,'2w':2,'1m':3,'life':4}[d]; if(rows[i]) rows[i].style.background='#1c2338'; }
   paintPrice();
 }
 async function submitRenew(){

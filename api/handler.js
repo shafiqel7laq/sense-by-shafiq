@@ -5,7 +5,7 @@ import { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor, LAYOUTS_V2, AIM_SKILLS, aim
 const UPURL = process.env.UPSTASH_REDIS_REST_URL;
 const UPTOK = process.env.UPSTASH_REDIS_REST_TOKEN;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin1234";
-const DURATIONS = { "1w": 7, "2w": 14, "1m": 30, "life": 36500 };
+const DURATIONS = { "1d": 1, "1w": 7, "2w": 14, "1m": 30, "life": 36500 };
 
 function durationDays(d) {
   return DURATIONS[d] || null;

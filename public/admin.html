@@ -25,6 +25,12 @@ th{color:var(--mut);font-weight:600}
 .row{display:flex;flex-wrap:wrap;align-items:center}
 .hidden{display:none}
 .mut{color:var(--mut);font-size:12px}
+.ltr{direction:ltr;unicode-bidi:isolate;text-align:left}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+.stat{background:var(--card2);border-radius:10px;padding:12px;text-align:center;border:1px solid #232c47}
+.stat .v{font-size:22px;font-weight:800;color:var(--acc)}
+.stat .k{font-size:12px;color:var(--mut);margin-top:2px}
 </style>
 </head>
 <body>
@@ -34,18 +40,36 @@ th{color:var(--mut);font-weight:600}
   <div id="loginCard" class="card">
     <h2 style="font-size:16px">دخول الأدمن</h2>
     <div class="row">
-      <input id="apw" type="password" placeholder="كلمة سر الأدمن">
+      <input id="apw" type="password" dir="ltr" class="ltr" placeholder="كلمة سر الأدمن">
       <button onclick="adminLogin()">دخول</button>
     </div>
     <div class="err" id="aerr"></div>
   </div>
 
   <div id="panel" class="hidden">
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="font-size:16px">نظرة سريعة 📊</h2>
+        <button class="ghost" onclick="loadStats()">تحديث</button>
+      </div>
+      <div class="grid">
+        <div class="stat"><div class="v" id="stActive">-</div><div class="k">عملاء نشطين</div></div>
+        <div class="stat"><div class="v" id="stExpired">-</div><div class="k">منتهين</div></div>
+        <div class="stat"><div class="v" id="stIncome">-</div><div class="k">دخل الشهر (جنيه)</div></div>
+        <div class="stat"><div class="v" id="stAppr">-</div><div class="k">تجديدات الشهر</div></div>
+      </div>
+      <h3 style="font-size:14px;margin-top:14px">هيخلصوا خلال 7 أيام</h3>
+      <div id="stExpiring" class="mut">...</div>
+      <h3 style="font-size:14px;margin-top:10px">أكتر الموديلات استخدامًا</h3>
+      <div id="stModels" class="mut">...</div>
+    </div>
     <div class="card">
       <h2 style="font-size:16px">إضافة زبون جديد</h2>
       <div class="row">
-        <input id="nu" placeholder="اسم المستخدم">
-        <input id="np" placeholder="كلمة السر">
+        <input id="nu" dir="ltr" class="ltr" placeholder="اسم المستخدم">
+        <input id="np" dir="ltr" class="ltr" placeholder="كلمة السر">
+        <input id="nref" dir="ltr" class="ltr" placeholder="كود إحالة (اختياري)" style="max-width:140px">
         <select id="nd">
           <option value="1w">أسبوع</option>
           <option value="2w">أسبوعين</option>
@@ -55,6 +79,7 @@ th{color:var(--mut);font-weight:600}
         <button onclick="addUser()">إضافة</button>
       </div>
       <div class="err" id="addErr"></div>
+      <div id="newCreds" class="hidden" style="background:var(--card2);border:1px solid #2a3452;border-radius:10px;padding:12px;margin-top:8px;font-size:14px;line-height:2"></div>
       <div class="mut">بعد الإضافة ابعت للزبون اسم المستخدم وكلمة السر ورابط التطبيق.</div>
     </div>
 
@@ -68,7 +93,7 @@ th{color:var(--mut);font-weight:600}
       </div>
       <div style="overflow-x:auto">
       <table>
-        <thead><tr><th>المستخدم</th><th>الخطة</th><th>الحالة</th><th>متبقي</th><th>ينتهي</th><th>إجراءات</th></tr></thead>
+        <thead><tr><th>المستخدم</th><th>الخطة</th><th>الحالة</th><th>متبقي</th><th>ينتهي</th><th>إحالات</th><th>إجراءات</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
       </div>
@@ -110,7 +135,7 @@ th{color:var(--mut);font-weight:600}
       </div>
       <div style="overflow-x:auto">
       <table>
-        <thead><tr><th>العميل</th><th>المدة</th><th>التاريخ</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <thead><tr><th>العميل</th><th>المدة</th><th>السعر</th><th>التاريخ</th><th>الحالة</th><th>إجراء</th></tr></thead>
         <tbody id="rrows"></tbody>
       </table>
       </div>
@@ -161,12 +186,35 @@ th{color:var(--mut);font-weight:600}
     </div>
 
     <div class="card">
+      <h2 style="font-size:16px">الإحالة والكوبونات 🎁</h2>
+      <div class="row">
+        <span class="mut">أيام هدية الإحالة:</span>
+        <input id="refGift" type="number" min="1" max="30" style="width:70px">
+        <button onclick="saveRefCfg()">حفظ</button>
+        <span class="mut">المحيل ياخد الأيام دي عن كل صاحب يدخل بكوده (مدى الحياة مبياخدش أيام)</span>
+      </div>
+      <h3 style="font-size:14px;margin-top:12px">كوبونات الخصم</h3>
+      <div class="row">
+        <input id="ccode" dir="ltr" class="ltr mono" placeholder="الكود (مثال SHAFIQ20)" style="max-width:170px">
+        <select id="ctype" style="width:auto"><option value="percent">نسبة %</option><option value="fixed">مبلغ ثابت (جنيه)</option></select>
+        <input id="cval" dir="ltr" type="number" min="1" placeholder="القيمة" style="width:90px">
+        <button onclick="saveCoupon()">حفظ الكوبون</button>
+      </div>
+      <table><thead><tr><th>الكود</th><th>الخصم</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="couponRows"></tbody></table>
+    </div>
+
+    <div class="card">
       <h2 style="font-size:16px">نص إشعار التحديث اليومي</h2>
       <div class="row"><input id="ntitle" placeholder="عنوان الإشعار" style="min-width:280px"></div>
       <div class="row"><input id="ntext" placeholder="نص الإشعار" style="min-width:280px"></div>
       <div class="row"><button onclick="saveNotif()">حفظ النص</button></div>
       <div class="err" id="notifErr"></div>
       <div class="mut">الإشعار بيوصل للعميل لما ينزل سيت جديد لموديل موبايله (فحص يومي من التطبيق).</div>
+      <h3 style="font-size:14px;margin-top:14px">نص إشعار قرب انتهاء الاشتراك (بيومين)</h3>
+      <div class="row"><input id="etitle" placeholder="عنوان الإشعار" style="min-width:280px"></div>
+      <div class="row"><input id="etext" placeholder="نص الإشعار" style="min-width:280px"></div>
+      <div class="row"><button onclick="saveExpiry()">حفظ النص</button></div>
+      <div class="err" id="expErr"></div>
     </div>
   </div>
 </div>
@@ -188,15 +236,34 @@ async function adminLogin(){
   sessionStorage.setItem('ff_admin', at);
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('panel').classList.remove('hidden');
-  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg();
+  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry();
 }
 async function addUser(){
   document.getElementById('addErr').textContent='';
-  const body = { username: document.getElementById('nu').value.trim(), password: document.getElementById('np').value.trim(), duration: document.getElementById('nd').value };
+  const body = { username: document.getElementById('nu').value.trim(), password: document.getElementById('np').value.trim(), duration: document.getElementById('nd').value, referral: document.getElementById('nref').value.trim() };
   const r = await api('/api/admin/users',{method:'POST',body:JSON.stringify(body)});
   if(r.status===409){ document.getElementById('addErr').textContent='اسم المستخدم ده موجود قبل كده'; return; }
   if(r.status!==201){ document.getElementById('addErr').textContent='تأكد من البيانات (اسم 3 حروف على الأقل، سر 4 على الأقل)'; return; }
-  document.getElementById('nu').value=''; document.getElementById('np').value='';
+  const box = document.getElementById('newCreds');
+  box.classList.remove('hidden');
+  box.innerHTML = '';
+  const mk = function(label, val){
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.justifyContent = 'space-between';
+    const l = document.createElement('span'); l.className='mut'; l.textContent = label;
+    const v = document.createElement('b'); v.className='ltr mono'; v.textContent = val;
+    const c = document.createElement('button'); c.className='ghost'; c.textContent='نسخ';
+    c.onclick = function(){ if(navigator.clipboard){ navigator.clipboard.writeText(val); c.textContent='اتنسخ ✓'; setTimeout(()=>c.textContent='نسخ',1500); } };
+    row.appendChild(l); row.appendChild(v); row.appendChild(c);
+    return row;
+  };
+  const ttl = document.createElement('div'); ttl.className='mut'; ttl.textContent='بيانات العميل الجديد — ابعتهاله:';
+  box.appendChild(ttl);
+  box.appendChild(mk('اليوزر:', body.username));
+  box.appendChild(mk('الباسورد:', body.password));
+  if(r.body.referral && r.body.referral.error){ const w=document.createElement('div'); w.className='err'; w.textContent='كود الإحالة مش صحيح، العميل اتسجل من غيره'; box.appendChild(w); }
+  document.getElementById('nu').value=''; document.getElementById('np').value=''; document.getElementById('nref').value='';
   loadUsers();
 }
 async function act(id, action, method){
@@ -272,8 +339,10 @@ async function loadRenewals(){
     const act = q.status==='pending'
       ? '<button onclick="renAct(\''+q.id+'\',\'approve\')">قبول</button><button class="danger" onclick="renAct(\''+q.id+'\',\'reject\')">رفض</button>'
       : '';
-    return '<tr><td><b>'+esc(q.username)+'</b></td><td>'+(DUR_NAMES[q.plan]||q.plan)+'</td><td>'+fmt(q.createdAt)+'</td><td>'+(ST[q.status]||q.status)+'</td><td>'+act+'</td></tr>';
-  }).join('') || '<tr><td colspan="5" class="mut">مفيش طلبات لسه</td></tr>';
+    const price = q.priceFinal!=null ? q.priceFinal+' ج' : '—';
+    const coupon = q.coupon ? '<div class="mut">كوبون: '+esc(q.coupon)+(q.priceBase!=null?' (كان '+q.priceBase+')':'')+'</div>' : '';
+    return '<tr><td><b>'+esc(q.username)+'</b></td><td>'+(DUR_NAMES[q.plan]||q.plan)+'</td><td>'+price+coupon+'</td><td>'+fmt(q.createdAt)+'</td><td>'+(ST[q.status]||q.status)+'</td><td>'+act+'</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="mut">مفيش طلبات لسه</td></tr>';
 }
 async function renAct(id, a){
   if(a==='approve' && !confirm('الموافقة هتمدد اشتراك العميل تلقائي. متأكد؟')) return;
@@ -356,12 +425,12 @@ async function loadUsers(){
   const rows = r.body.users.map(u=>{
     const st = u.active ? '<span class="badge on">فعّال</span>' : '<span class="badge off">'+(u.status==='cancelled'?'ملغي':'منتهي')+'</span>';
     const life = u.plan==='life';
-    return '<tr><td><b>'+esc(u.username)+'</b></td><td>'+(DUR_NAMES[u.plan]||u.plan)+'</td><td>'+st+'</td><td>'+(life?'♾️':u.daysLeft+' يوم')+'</td><td>'+(life?'مدى الحياة':fmt(u.expiresAt))+'</td>'+
+    return '<tr><td><b>'+esc(u.username)+'</b></td><td>'+(DUR_NAMES[u.plan]||u.plan)+'</td><td>'+st+'</td><td>'+(life?'♾️':u.daysLeft+' يوم')+'</td><td>'+(life?'مدى الحياة':fmt(u.expiresAt))+'</td><td>'+(u.refCode?'<span class="ltr mono">'+esc(u.refCode)+'</span>'+(u.refCount?' <span class="badge on">'+u.refCount+'</span>':''):'—')+'</td>'+
     '<td><button class="ghost" onclick="act(\''+u.id+'\',\'extend\')">تمديد</button>'+
     (u.status==='active' ? '<button class="danger" onclick="act(\''+u.id+'\',\'cancel\')">إلغاء</button>' : '<button class="ghost" onclick="act(\''+u.id+'\',\'reactivate\')">تفعيل</button>')+
     '<button class="danger" onclick="act(\''+u.id+'\',\'DELETE\')">مسح</button></td></tr>';
   }).join('');
-  document.getElementById('rows').innerHTML = rows || '<tr><td colspan="6" class="mut">مفيش زبائن لسه</td></tr>';
+  document.getElementById('rows').innerHTML = rows || '<tr><td colspan="7" class="mut">مفيش زبائن لسه</td></tr>';
   loadBeastAdmin(r.body.users);
 }
 async function exp(){
@@ -381,7 +450,60 @@ async function imp(inp){
   inp.value='';
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); }
+async function loadStats(){
+  const r = await api('/api/admin/stats');
+  if(r.status!==200) return;
+  const s = r.body;
+  document.getElementById('stActive').textContent = s.active;
+  document.getElementById('stExpired').textContent = s.expired;
+  document.getElementById('stIncome').textContent = s.monthIncome;
+  document.getElementById('stAppr').textContent = s.monthApproved;
+  document.getElementById('stExpiring').innerHTML = (s.expiringSoon||[]).length
+    ? s.expiringSoon.map(x=>'<div>'+esc(x.username)+' — متبقي '+x.daysLeft+' يوم ('+(DUR_NAMES[x.plan]||x.plan)+')</div>').join('')
+    : 'مفيش اشتراكات بتخلص قريب';
+  document.getElementById('stModels').innerHTML = (s.topModels||[]).length
+    ? s.topModels.map(x=>'<div>'+esc(x.model)+' — '+x.count+' عميل</div>').join('')
+    : 'لسه مفيش بيانات موديلات (بتتسجل أول ما العميل يفتح التطبيق)';
+}
+async function loadRefCfg(){
+  const r = await api('/api/admin/referralcfg');
+  if(r.status===200) document.getElementById('refGift').value = r.body.giftDays;
+}
+async function saveRefCfg(){
+  await api('/api/admin/referralcfg',{method:'POST',body:JSON.stringify({giftDays:document.getElementById('refGift').value})});
+}
+async function loadCoupons(){
+  const r = await api('/api/admin/coupons');
+  if(r.status!==200) return;
+  document.getElementById('couponRows').innerHTML = (r.body.coupons||[]).map(function(c){
+    const disc = c.type==='percent' ? c.value+'%' : c.value+' جنيه';
+    const st = c.active ? '<span class="badge on">شغال</span>' : '<span class="badge off">موقوف</span>';
+    return '<tr><td><span class="ltr mono">'+esc(c.code)+'</span></td><td>'+disc+'</td><td>'+st+'</td><td>'+
+      '<button class="ghost" onclick="toggleCoupon(\''+c.code+'\')">'+(c.active?'إيقاف':'تشغيل')+'</button>'+
+      '<button class="danger" onclick="delCoupon(\''+c.code+'\')">مسح</button></td></tr>';
+  }).join('') || '<tr><td colspan="4" class="mut">مفيش كوبونات لسه</td></tr>';
+}
+async function saveCoupon(){
+  const body = { code: document.getElementById('ccode').value, type: document.getElementById('ctype').value, value: document.getElementById('cval').value };
+  const r = await api('/api/admin/coupons/save',{method:'POST',body:JSON.stringify(body)});
+  if(r.status===200){ document.getElementById('ccode').value=''; document.getElementById('cval').value=''; }
+  loadCoupons();
+}
+async function toggleCoupon(code){ await api('/api/admin/coupons/toggle',{method:'POST',body:JSON.stringify({code:code})}); loadCoupons(); }
+async function delCoupon(code){ if(!confirm('تمسح الكوبون '+code+'?')) return; await api('/api/admin/coupons/delete',{method:'POST',body:JSON.stringify({code:code})}); loadCoupons(); }
+async function loadExpiry(){
+  const r = await api('/api/admin/expirynotif');
+  if(r.status!==200) return;
+  document.getElementById('etitle').value = r.body.title||'';
+  document.getElementById('etext').value = r.body.text||'';
+}
+async function saveExpiry(){
+  const r = await api('/api/admin/expirynotif',{method:'POST',body:JSON.stringify({title:document.getElementById('etitle').value.trim(),text:document.getElementById('etext').value.trim()})});
+  const e = document.getElementById('expErr');
+  if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); }
+  else { e.textContent='حصل خطأ أثناء الحفظ'; }
+}
+if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); }
 </script>
 </body>
 </html>

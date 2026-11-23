@@ -22,6 +22,28 @@ const BRAND = {
 // DPI by RAM tier (vortexgaming). null = لا تغيّر DPI (موبايلات 2 جيجا عليها لاج)
 const RAM_DPI = { 2: null, 3: 425, 4: 497, 6: 525, 8: 560, 12: 591 };
 
+// DPI per model: computed from the actual screen (size + resolution -> density -> stock smallest-width dp),
+// then kept coherent with the sensitivity as one unit: generalSens x dpi stays ~constant around the balanced anchor.
+const SENS_ANCHOR = 193;
+const RAM_DPI_CAP = { 3: 460, 4: 540, 6: 600, 8: 640, 12: 680 };
+function screenPpi(m) { if (!m.scr) return null; const [inch, w, h] = m.scr; return Math.round(Math.sqrt(w * w + h * h) / inch); }
+function stockDp(m) { const p = screenPpi(m); if (!p) return null; return m.scr[1] * 160 / p; }
+function dpiFor(m, generalSens) {
+  const tier = ramTier(m.ram);
+  if (tier === 2) return null; // 2GB: لا ننصح بتغيير DPI (لاج)
+  const sd = stockDp(m);
+  const base = sd != null ? sd * 1.30 : (RAM_DPI[tier] != null ? RAM_DPI[tier] : (BRAND[m.brand] || BRAND.generic).dpi);
+  const cap = Math.min(sd != null ? sd * 1.65 : 700, RAM_DPI_CAP[tier] || 640);
+  const floor = sd != null ? sd * 1.05 : 380;
+  const coherent = base * (SENS_ANCHOR / Math.max(120, generalSens || SENS_ANCHOR));
+  return Math.max(300, Math.min(800, Math.round(Math.min(cap, Math.max(floor, coherent)) / 5) * 5));
+}
+function dpiNote(m, dpi) {
+  const p = screenPpi(m);
+  if (p == null || dpi == null) return '';
+  return 'DPI ' + dpi + ' محسوب من شاشة موبايلك (' + m.scr[0] + ' بوصة، ~' + p + ' بكسل/بوصة) ومتوازن مع الحساسية عشان الحركة الكلية تفضل ثابتة.';
+}
+
 function ramTier(ram) {
   if (ram <= 2) return 2;
   if (ram <= 3) return 3;
@@ -34,69 +56,70 @@ function ramTier(ram) {
 // keys: lowercase substrings matched against Build.MODEL or a typed name
 // ram: GB, hz: screen refresh, brand: key of BRAND
 const MODELS = [
-  { keys: ['sm-a05'], name: 'Samsung Galaxy A05', brand: 'samsung', ram: 4, hz: 60 },
-  { keys: ['sm-a06'], name: 'Samsung Galaxy A06', brand: 'samsung', ram: 4, hz: 60 },
-  { keys: ['sm-a15'], name: 'Samsung Galaxy A15', brand: 'samsung', ram: 4, hz: 90 },
-  { keys: ['sm-a16'], name: 'Samsung Galaxy A16', brand: 'samsung', ram: 4, hz: 90 },
-  { keys: ['sm-a25'], name: 'Samsung Galaxy A25', brand: 'samsung', ram: 6, hz: 120 },
-  { keys: ['sm-a26'], name: 'Samsung Galaxy A26', brand: 'samsung', ram: 6, hz: 120 },
-  { keys: ['sm-a35'], name: 'Samsung Galaxy A35', brand: 'samsung', ram: 6, hz: 120 },
-  { keys: ['sm-a36'], name: 'Samsung Galaxy A36', brand: 'samsung', ram: 6, hz: 120 },
-  { keys: ['sm-a54'], name: 'Samsung Galaxy A54', brand: 'samsung', ram: 8, hz: 120 },
-  { keys: ['sm-a55'], name: 'Samsung Galaxy A55', brand: 'samsung', ram: 8, hz: 120 },
-  { keys: ['sm-a56'], name: 'Samsung Galaxy A56', brand: 'samsung', ram: 8, hz: 120 },
-  { keys: ['sm-a73'], name: 'Samsung Galaxy A73', brand: 'samsung', ram: 8, hz: 120 },
-  { keys: ['sm-s91'], name: 'Samsung Galaxy S23', brand: 'samsung', ram: 8, hz: 120 },
-  { keys: ['sm-s92'], name: 'Samsung Galaxy S24', brand: 'samsung', ram: 8, hz: 120 },
-  { keys: ['sm-s93'], name: 'Samsung Galaxy S25', brand: 'samsung', ram: 12, hz: 120 },
-  { keys: ['sm-m14', 'sm-m15'], name: 'Samsung Galaxy M14/M15', brand: 'samsung', ram: 4, hz: 90 },
-  { keys: ['redmi note 13 pro'], name: 'Redmi Note 13 Pro', brand: 'xiaomi', ram: 8, hz: 120 },
-  { keys: ['redmi note 13'], name: 'Redmi Note 13', brand: 'xiaomi', ram: 6, hz: 120 },
-  { keys: ['redmi note 14'], name: 'Redmi Note 14', brand: 'xiaomi', ram: 6, hz: 120 },
-  { keys: ['redmi note 12'], name: 'Redmi Note 12', brand: 'xiaomi', ram: 4, hz: 120 },
-  { keys: ['redmi note 11'], name: 'Redmi Note 11', brand: 'xiaomi', ram: 4, hz: 90 },
-  { keys: ['redmi 13c'], name: 'Redmi 13C', brand: 'xiaomi', ram: 4, hz: 90 },
-  { keys: ['redmi 14c'], name: 'Redmi 14C', brand: 'xiaomi', ram: 4, hz: 120 },
-  { keys: ['redmi 12'], name: 'Redmi 12', brand: 'xiaomi', ram: 4, hz: 90 },
-  { keys: ['redmi 13'], name: 'Redmi 13', brand: 'xiaomi', ram: 6, hz: 90 },
-  { keys: ['redmi a3'], name: 'Redmi A3', brand: 'xiaomi', ram: 3, hz: 90 },
-  { keys: ['poco x6'], name: 'Poco X6', brand: 'xiaomi', ram: 8, hz: 120 },
-  { keys: ['poco x7'], name: 'Poco X7', brand: 'xiaomi', ram: 8, hz: 120 },
-  { keys: ['poco x5'], name: 'Poco X5', brand: 'xiaomi', ram: 6, hz: 120 },
-  { keys: ['poco m6'], name: 'Poco M6', brand: 'xiaomi', ram: 4, hz: 90 },
-  { keys: ['poco m7'], name: 'Poco M7', brand: 'xiaomi', ram: 6, hz: 90 },
-  { keys: ['poco f5'], name: 'Poco F5', brand: 'xiaomi', ram: 8, hz: 120 },
-  { keys: ['poco f6'], name: 'Poco F6', brand: 'xiaomi', ram: 8, hz: 120 },
-  { keys: ['poco c65', 'poco c75'], name: 'Poco C65/C75', brand: 'xiaomi', ram: 4, hz: 90 },
-  { keys: ['realme c55'], name: 'Realme C55', brand: 'realme', ram: 6, hz: 90 },
-  { keys: ['realme c61', 'realme c63', 'realme c65'], name: 'Realme C61/C63/C65', brand: 'realme', ram: 4, hz: 90 },
-  { keys: ['realme c11', 'realme c12', 'realme c15', 'realme c17'], name: 'Realme C11-C17', brand: 'realme', ram: 3, hz: 60 },
-  { keys: ['realme 12'], name: 'Realme 12', brand: 'realme', ram: 8, hz: 120 },
-  { keys: ['realme 11'], name: 'Realme 11', brand: 'realme', ram: 8, hz: 120 },
-  { keys: ['realme 9'], name: 'Realme 9', brand: 'realme', ram: 6, hz: 90 },
-  { keys: ['realme note 50'], name: 'Realme Note 50', brand: 'realme', ram: 4, hz: 90 },
-  { keys: ['hot 40'], name: 'Infinix Hot 40', brand: 'infinix', ram: 8, hz: 90 },
-  { keys: ['hot 50'], name: 'Infinix Hot 50', brand: 'infinix', ram: 8, hz: 120 },
-  { keys: ['hot 30'], name: 'Infinix Hot 30', brand: 'infinix', ram: 8, hz: 90 },
-  { keys: ['note 40'], name: 'Infinix Note 40', brand: 'infinix', ram: 8, hz: 120 },
-  { keys: ['note 50'], name: 'Infinix Note 50', brand: 'infinix', ram: 8, hz: 120 },
-  { keys: ['smart 8', 'smart 9'], name: 'Infinix Smart 8/9', brand: 'infinix', ram: 4, hz: 90 },
-  { keys: ['gt 10', 'gt 20'], name: 'Infinix GT', brand: 'infinix', ram: 8, hz: 120 },
-  { keys: ['spark 20'], name: 'Tecno Spark 20', brand: 'tecno', ram: 4, hz: 90 },
-  { keys: ['spark 30'], name: 'Tecno Spark 30', brand: 'tecno', ram: 8, hz: 90 },
-  { keys: ['spark go'], name: 'Tecno Spark Go', brand: 'tecno', ram: 3, hz: 90 },
-  { keys: ['camon 30'], name: 'Tecno Camon 30', brand: 'tecno', ram: 8, hz: 120 },
-  { keys: ['camon 40'], name: 'Tecno Camon 40', brand: 'tecno', ram: 8, hz: 120 },
-  { keys: ['pova 5', 'pova 6'], name: 'Tecno Pova 5/6', brand: 'tecno', ram: 8, hz: 120 },
-  { keys: ['oppo a58'], name: 'Oppo A58', brand: 'oppo', ram: 6, hz: 90 },
-  { keys: ['oppo a78'], name: 'Oppo A78', brand: 'oppo', ram: 8, hz: 90 },
-  { keys: ['oppo a3'], name: 'Oppo A3', brand: 'oppo', ram: 6, hz: 90 },
-  { keys: ['oppo a5'], name: 'Oppo A5', brand: 'oppo', ram: 6, hz: 90 },
-  { keys: ['oppo reno'], name: 'Oppo Reno', brand: 'oppo', ram: 8, hz: 120 },
-  { keys: ['vivo y28', 'vivo y27', 'vivo y36'], name: 'Vivo Y28/Y36', brand: 'vivo', ram: 8, hz: 90 },
-  { keys: ['vivo y1', 'vivo y2'], name: 'Vivo Y series', brand: 'vivo', ram: 4, hz: 60 },
-  { keys: ['honor x8', 'honor x9'], name: 'Honor X8/X9', brand: 'honor', ram: 6, hz: 90 },
-  { keys: ['honor x6', 'honor x7'], name: 'Honor X6/X7', brand: 'honor', ram: 4, hz: 90 }
+  { keys: ['sm-a05'], name: 'Samsung Galaxy A05', scr: [6.7, 720, 1600], brand: 'samsung', ram: 4, hz: 60 },
+  { keys: ['sm-a06'], name: 'Samsung Galaxy A06', scr: [6.7, 720, 1600], brand: 'samsung', ram: 4, hz: 60 },
+  { keys: ['sm-a15'], name: 'Samsung Galaxy A15', scr: [6.5, 1080, 2340], brand: 'samsung', ram: 4, hz: 90 },
+  { keys: ['sm-a16'], name: 'Samsung Galaxy A16', scr: [6.7, 1080, 2340], brand: 'samsung', ram: 4, hz: 90 },
+  { keys: ['sm-a25'], name: 'Samsung Galaxy A25', scr: [6.5, 1080, 2340], brand: 'samsung', ram: 6, hz: 120 },
+  { keys: ['sm-a26'], name: 'Samsung Galaxy A26', scr: [6.7, 1080, 2340], brand: 'samsung', ram: 6, hz: 120 },
+  { keys: ['sm-a35'], name: 'Samsung Galaxy A35', scr: [6.6, 1080, 2340], brand: 'samsung', ram: 6, hz: 120 },
+  { keys: ['sm-a36'], name: 'Samsung Galaxy A36', scr: [6.7, 1080, 2340], brand: 'samsung', ram: 6, hz: 120 },
+  { keys: ['sm-a54'], name: 'Samsung Galaxy A54', scr: [6.4, 1080, 2340], brand: 'samsung', ram: 8, hz: 120 },
+  { keys: ['sm-a55'], name: 'Samsung Galaxy A55', scr: [6.6, 1080, 2340], brand: 'samsung', ram: 8, hz: 120 },
+  { keys: ['sm-a56'], name: 'Samsung Galaxy A56', scr: [6.7, 1080, 2340], brand: 'samsung', ram: 8, hz: 120 },
+  { keys: ['sm-a73'], name: 'Samsung Galaxy A73', scr: [6.7, 1080, 2400], brand: 'samsung', ram: 8, hz: 120 },
+  { keys: ['sm-s91'], name: 'Samsung Galaxy S23', scr: [6.1, 1080, 2340], brand: 'samsung', ram: 8, hz: 120 },
+  { keys: ['sm-s92'], name: 'Samsung Galaxy S24', scr: [6.2, 1080, 2340], brand: 'samsung', ram: 8, hz: 120 },
+  { keys: ['sm-s93'], name: 'Samsung Galaxy S25', scr: [6.2, 1080, 2340], brand: 'samsung', ram: 12, hz: 120 },
+  { keys: ['sm-m14', 'sm-m15'], name: 'Samsung Galaxy M14/M15', scr: [6.6, 1080, 2408], brand: 'samsung', ram: 4, hz: 90 },
+  { keys: ['redmi note 13 pro'], name: 'Redmi Note 13 Pro', scr: [6.67, 1220, 2712], brand: 'xiaomi', ram: 8, hz: 120 },
+  { keys: ['redmi note 13'], name: 'Redmi Note 13', scr: [6.67, 1080, 2400], brand: 'xiaomi', ram: 6, hz: 120 },
+  { keys: ['redmi note 14'], name: 'Redmi Note 14', scr: [6.67, 1080, 2400], brand: 'xiaomi', ram: 6, hz: 120 },
+  { keys: ['redmi note 12'], name: 'Redmi Note 12', scr: [6.67, 1080, 2400], brand: 'xiaomi', ram: 4, hz: 120 },
+  { keys: ['redmi note 11'], name: 'Redmi Note 11', scr: [6.43, 1080, 2400], brand: 'xiaomi', ram: 4, hz: 90 },
+  { keys: ['redmi 13c'], name: 'Redmi 13C', scr: [6.74, 720, 1600], brand: 'xiaomi', ram: 4, hz: 90 },
+  { keys: ['redmi 14c'], name: 'Redmi 14C', scr: [6.88, 720, 1640], brand: 'xiaomi', ram: 4, hz: 120 },
+  { keys: ['redmi 12'], name: 'Redmi 12', scr: [6.79, 1080, 2460], brand: 'xiaomi', ram: 4, hz: 90 },
+  { keys: ['redmi 13'], name: 'Redmi 13', scr: [6.79, 1080, 2460], brand: 'xiaomi', ram: 6, hz: 90 },
+  { keys: ['redmi a3'], name: 'Redmi A3', scr: [6.71, 720, 1650], brand: 'xiaomi', ram: 3, hz: 90 },
+  { keys: ['poco x6'], name: 'Poco X6', scr: [6.67, 1220, 2712], brand: 'xiaomi', ram: 8, hz: 120 },
+  { keys: ['poco x7'], name: 'Poco X7', scr: [6.67, 1220, 2712], brand: 'xiaomi', ram: 8, hz: 120 },
+  { keys: ['poco x5'], name: 'Poco X5', scr: [6.67, 1080, 2400], brand: 'xiaomi', ram: 6, hz: 120 },
+  { keys: ['poco m6'], name: 'Poco M6', scr: [6.79, 1080, 2460], brand: 'xiaomi', ram: 4, hz: 90 },
+  { keys: ['poco m7'], name: 'Poco M7', scr: [6.88, 720, 1640], brand: 'xiaomi', ram: 6, hz: 90 },
+  { keys: ['poco f5'], name: 'Poco F5', scr: [6.67, 1080, 2400], brand: 'xiaomi', ram: 8, hz: 120 },
+  { keys: ['poco f6'], name: 'Poco F6', scr: [6.67, 1220, 2712], brand: 'xiaomi', ram: 8, hz: 120 },
+  { keys: ['poco c65', 'poco c75'], name: 'Poco C65/C75', scr: [6.8, 720, 1640], brand: 'xiaomi', ram: 4, hz: 90 },
+  { keys: ['realme c55'], name: 'Realme C55', scr: [6.72, 1080, 2400], brand: 'realme', ram: 6, hz: 90 },
+  { keys: ['realme c61', 'realme c63', 'realme c65'], name: 'Realme C61/C63/C65', scr: [6.74, 720, 1600], brand: 'realme', ram: 4, hz: 90 },
+  { keys: ['realme c11', 'realme c12', 'realme c15', 'realme c17'], name: 'Realme C11-C17', scr: [6.5, 720, 1600], brand: 'realme', ram: 3, hz: 60 },
+  { keys: ['realme 12'], name: 'Realme 12', scr: [6.67, 1080, 2400], brand: 'realme', ram: 8, hz: 120 },
+  { keys: ['realme 11'], name: 'Realme 11', scr: [6.4, 1080, 2400], brand: 'realme', ram: 8, hz: 120 },
+  { keys: ['realme 9'], name: 'Realme 9', scr: [6.4, 1080, 2400], brand: 'realme', ram: 6, hz: 90 },
+  { keys: ['realme note 50'], name: 'Realme Note 50', scr: [6.74, 720, 1600], brand: 'realme', ram: 4, hz: 90 },
+  { keys: ['hot 40'], name: 'Infinix Hot 40', scr: [6.78, 1080, 2460], brand: 'infinix', ram: 8, hz: 90 },
+  { keys: ['hot 50'], name: 'Infinix Hot 50', scr: [6.78, 1080, 2460], brand: 'infinix', ram: 8, hz: 120 },
+  { keys: ['hot 30'], name: 'Infinix Hot 30', scr: [6.78, 1080, 2460], brand: 'infinix', ram: 8, hz: 90 },
+  { keys: ['note 40'], name: 'Infinix Note 40', scr: [6.78, 1080, 2436], brand: 'infinix', ram: 8, hz: 120 },
+  { keys: ['note 50'], name: 'Infinix Note 50', scr: [6.78, 1080, 2436], brand: 'infinix', ram: 8, hz: 120 },
+  { keys: ['smart 8', 'smart 9'], name: 'Infinix Smart 8/9', scr: [6.6, 720, 1612], brand: 'infinix', ram: 4, hz: 90 },
+  { keys: ['gt 10', 'gt 20'], name: 'Infinix GT', scr: [6.78, 1080, 2436], brand: 'infinix', ram: 8, hz: 120 },
+  { keys: ['spark 20'], name: 'Tecno Spark 20', scr: [6.6, 720, 1612], brand: 'tecno', ram: 4, hz: 90 },
+  { keys: ['spark 30'], name: 'Tecno Spark 30', scr: [6.78, 1080, 2460], brand: 'tecno', ram: 8, hz: 90 },
+  { keys: ['spark go'], name: 'Tecno Spark Go', scr: [6.67, 720, 1600], brand: 'tecno', ram: 3, hz: 90 },
+  { keys: ['camon 30'], name: 'Tecno Camon 30', scr: [6.78, 1080, 2436], brand: 'tecno', ram: 8, hz: 120 },
+  { keys: ['camon 40'], name: 'Tecno Camon 40', scr: [6.78, 1080, 2436], brand: 'tecno', ram: 8, hz: 120 },
+  { keys: ['pova 5', 'pova 6'], name: 'Tecno Pova 5/6', scr: [6.78, 1080, 2460], brand: 'tecno', ram: 8, hz: 120 },
+  { keys: ['oppo a58'], name: 'Oppo A58', scr: [6.72, 1080, 2400], brand: 'oppo', ram: 6, hz: 90 },
+  { keys: ['oppo a78'], name: 'Oppo A78', scr: [6.43, 1080, 2400], brand: 'oppo', ram: 8, hz: 90 },
+  { keys: ['oppo a3'], name: 'Oppo A3', scr: [6.67, 720, 1604], brand: 'oppo', ram: 6, hz: 90 },
+  { keys: ['oppo a5'], name: 'Oppo A5', scr: [6.67, 720, 1604], brand: 'oppo', ram: 6, hz: 90 },
+  { keys: ['oppo reno'], name: 'Oppo Reno', scr: [6.4, 1080, 2340], brand: 'oppo', ram: 8, hz: 120 },
+  { keys: ['vivo y28'], name: 'Vivo Y28', scr: [6.68, 720, 1608], brand: 'vivo', ram: 8, hz: 90 },
+  { keys: ['vivo y27', 'vivo y36'], name: 'Vivo Y27/Y36', scr: [6.64, 1080, 2388], brand: 'vivo', ram: 8, hz: 90 },
+  { keys: ['vivo y1', 'vivo y2'], name: 'Vivo Y series', scr: [6.56, 720, 1612], brand: 'vivo', ram: 4, hz: 60 },
+  { keys: ['honor x8', 'honor x9'], name: 'Honor X8/X9', scr: [6.8, 1080, 2388], brand: 'honor', ram: 6, hz: 90 },
+  { keys: ['honor x6', 'honor x7'], name: 'Honor X6/X7', scr: [6.6, 720, 1600], brand: 'honor', ram: 4, hz: 90 }
 ];
 
 const BRAND_GUESS = [
@@ -125,8 +148,6 @@ function clamp(v) { return Math.max(1, Math.min(200, Math.round(v))); }
 function build(m, matchType, query) {
   const b = BRAND[m.brand] || BRAND.generic;
   const tier = ramTier(m.ram);
-  let dpi = RAM_DPI[tier] != null ? RAM_DPI[tier] : b.dpi;
-  if (tier === 2) dpi = null; // 2GB: لا ننصح بتغيير DPI (لاج)
   // low-RAM devices: general sensitivity up a notch (per vortexgaming low tiers)
   const boost = m.ram <= 3 ? 8 : 0;
   const hz = m.hz || 60;
@@ -140,12 +161,14 @@ function build(m, matchType, query) {
     sniper: clamp(b.sniper),
     freeLook: clamp(b.freeLook)
   };
+  const dpi = dpiFor(m, sens.general);
+  const dpiN = dpiNote(m, dpi);
   const fps = hz >= 120 ? 'High / Ultra (90-120 إطار)' : hz >= 90 ? 'High (60-90 إطار)' : 'عادي (40-60 إطار)';
   const tips = [];
   tips.push('الإعدادات دي متظبطة خصيصًا عشان تقوّي تصويبك للراس (الهيدشوت) — القيم مدروسة حسب موبايلك بالظبط، والتزام بيها هتحس بفرق من أول جيم.');
   tips.push('تكنيك الهيدشوت: بعد ما التصويب يلمس جسم الخصم، اسحب زرار الضرب لفوق بسرعة — الحساسية هنا متظبطة عشان السحبة توصل للراس من غير ما تعدّي.');
   if (dpi == null) tips.push('موبايلك رام 2 جيجا أو أقل: منصحش تغيّر DPI نهائيًا عشان اللاج، خلّيه زي ما هو.');
-  else tips.push('غيّر الـ DPI من: إعدادات الموبايل > خيارات المطوّر > Smallest Width (أو عرض الحد الأدنى) وخلّيه ' + dpi + '.');
+  else tips.push('غيّر الـ DPI من: إعدادات الموبايل > خيارات المطوّر > Smallest Width (أو عرض الحد الأدنى) وخلّيه ' + dpi + '.' + (dpiN ? ' ' + dpiN : ''));
   tips.push('الجرافيك: Smooth دايمًا، وشغّل High FPS لو متاح، واقفل الظلال (Shadows).');
   if (hz >= 90) tips.push('شاشتك ' + hz + 'Hz: تأكد إن معدل التحديث على أعلى قيمة من إعدادات الشاشة قبل اللعب.');
   tips.push('اقفل وضع توفير البطارية وهو بيلعب، بيقلل استجابة اللمس.');
@@ -174,7 +197,7 @@ function build(m, matchType, query) {
     key: m.name || 'generic',
     device: {
       name: m.name || (query + ' (حسب فئة الجهاز)'),
-      dpi: dpi, sens, fps, controls, weapons,
+      dpi: dpi, dpiNote: dpiN, sens, fps, controls, weapons,
       graphics: 'Smooth + High FPS',
       refresh: hz, ramGB: m.ram,
       tips: tips.join('\n'),
@@ -206,4 +229,4 @@ function match(query) {
 
 function list() { return MODELS.map(m => m.name); }
 
-export { match, list, MODELS };
+export { match, list, MODELS, dpiFor, screenPpi, dpiNote };

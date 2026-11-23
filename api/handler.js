@@ -37,6 +37,62 @@ async function notifMsg() {
     text: (n && n.text) || "تعالى جرّب السيت الجديد وافشخ أصحابك، خليهم يقولوا عليك مفعّل 😈"
   };
 }
+async function expiryMsg() {
+  const n = await get("meta/expirynotif");
+  return {
+    title: (n && n.title) || "اشتراكك بيخلص قريب ⏳",
+    text: (n && n.text) || "اشتراكك هيخلص بعد يومين، جدد وكمّل فشخ 😈"
+  };
+}
+async function referralCfg() {
+  const c = await get("meta/referral");
+  const g = c && Number.isFinite(+c.giftDays) && +c.giftDays > 0 ? Math.min(30, +c.giftDays) : 3;
+  return { giftDays: g };
+}
+async function ensureRefCode(u) {
+  if (u.refCode) return u.refCode;
+  let base = String(u.username || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+  if (!base) base = "SENSE";
+  let code = base, i = 1;
+  while (await get("refcode/" + code)) { i++; code = base + i; }
+  u.refCode = code;
+  await set("refcode/" + code, u.id);
+  await putUser(u);
+  return code;
+}
+async function applyReferral(newUser, codeRaw) {
+  const code = String(codeRaw || "").trim().toUpperCase();
+  if (!code) return { error: "bad_code" };
+  if (newUser.referredBy) return { error: "already_used" };
+  const refId = await get("refcode/" + code);
+  if (!refId) return { error: "bad_code" };
+  if (refId === newUser.id) return { error: "own_code" };
+  const referrer = await get("users/" + refId);
+  if (!referrer) return { error: "bad_code" };
+  const cfg = await referralCfg();
+  let gifted = 0;
+  if (referrer.plan !== "life") {
+    gifted = cfg.giftDays;
+    referrer.expiresAt = Math.max(Date.now(), referrer.expiresAt) + gifted * 86400000;
+    if (referrer.status !== "cancelled") referrer.status = "active";
+  }
+  referrer.refCount = (referrer.refCount || 0) + 1;
+  await putUser(referrer);
+  newUser.referredBy = code;
+  await putUser(newUser);
+  return { ok: true, gifted, referrer: referrer.username };
+}
+function couponFinal(coupon, price) {
+  if (coupon.type === "percent") return Math.max(0, Math.round(price * (100 - Math.min(100, coupon.value)) / 100));
+  return Math.max(0, price - coupon.value);
+}
+async function getCoupon(codeRaw) {
+  const code = String(codeRaw || "").trim().toUpperCase();
+  if (!code) return null;
+  const c = await get("coupons/" + code);
+  if (!c || !c.active) return null;
+  return c;
+}
 const DKEYS = Object.keys(DURATIONS);
 async function paymentInfo() {
   const p = (await get("meta/payment")) || {};
@@ -133,7 +189,31 @@ export default async (req) => {
       if (!s) return json({ error: "unauthorized" }, 401);
       const st = (await get("streak/" + s.user.id)) || { count: 0, best: 0 };
       const cfg = (await get("meta/streak")) || {};
-      return json({ user: publicUser(s.user), nick: s.user.nick || "", streak: { count: st.count || 0, best: st.best || 0, giftDays: cfg.giftDays || 1 } });
+      const refCode = await ensureRefCode(s.user);
+      return json({ user: publicUser(s.user), nick: s.user.nick || "", streak: { count: st.count || 0, best: st.best || 0, giftDays: cfg.giftDays || 1 },
+        referral: { code: refCode, count: s.user.refCount || 0, used: !!s.user.referredBy },
+        expNotif: await expiryMsg() });
+    }
+    if (p === "/api/referral" && req.method === "POST") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const { code } = await req.json();
+      const res = await applyReferral(s.user, code);
+      if (res.error) return json(res, 400);
+      return json(res);
+    }
+    if (p === "/api/coupon/check" && req.method === "POST") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const { code, duration } = await req.json();
+      const days = durationDays(duration);
+      if (!days) return json({ error: "bad_duration" }, 400);
+      const pay = await paymentInfo();
+      const base = parseFloat(pay.prices[duration]);
+      if (!Number.isFinite(base)) return json({ error: "no_price" }, 400);
+      const c = await getCoupon(code);
+      if (!c) return json({ error: "invalid_coupon" }, 404);
+      return json({ valid: true, code: c.code, type: c.type, value: c.value, priceBefore: base, priceAfter: couponFinal(c, base) });
     }
     if (p === "/api/streak/ping" && req.method === "POST") {
       const s = await getSession(req);
@@ -225,9 +305,10 @@ export default async (req) => {
       const mres = matchDevice(model);
       const key = mres.key || "generic";
       const stored = await getSets(key);
-      const base = { id: "base", name: "السيت الأساسي", note: "مولّد تلقائيًا حسب موبايلك", sens: mres.device.sens, dpi: mres.device.dpi, updatedAt: 0 };
+      const base = { id: "base", name: "السيت الأساسي", note: "مولّد تلقائيًا حسب موبايلك" + (mres.device.dpiNote ? " — " + mres.device.dpiNote : ""), sens: mres.device.sens, dpi: mres.device.dpi, updatedAt: 0 };
       const latest = stored.reduce((a, x) => Math.max(a, x.updatedAt || 0), 0);
       await set("devseen/" + key, Date.now()).catch(() => {});
+      if (s.user.deviceKey !== key || s.user.deviceModel !== model) { s.user.deviceKey = key; s.user.deviceModel = model; await putUser(s.user); }
       return json({ user: pu, query: model, ...mres, key, sets: [base, ...stored], setsUpdatedAt: latest });
     }
     if (p === "/api/models" && req.method === "GET") {
@@ -243,13 +324,24 @@ export default async (req) => {
     if (p === "/api/renewal" && req.method === "POST") {
       const s = await getSession(req);
       if (!s) return json({ error: "unauthorized" }, 401);
-      const { duration } = await req.json();
+      const { duration, coupon } = await req.json();
       const days = durationDays(duration);
       if (!days) return json({ error: "bad_duration" }, 400);
       const mine = await myRenewals(s.user.id);
       const pending = mine.find(r => r.status === "pending");
       if (pending) return json({ request: pending });
-      const r = { id: rid(), userId: s.user.id, username: s.user.username, plan: duration, status: "pending", createdAt: Date.now(), resolvedAt: 0 };
+      const pay = await paymentInfo();
+      const basePrice = parseFloat(pay.prices[duration]);
+      let priceFinal = Number.isFinite(basePrice) ? basePrice : null;
+      let usedCoupon = null;
+      if (coupon && String(coupon).trim()) {
+        const c = await getCoupon(coupon);
+        if (!c) return json({ error: "invalid_coupon" }, 400);
+        if (priceFinal != null) priceFinal = couponFinal(c, priceFinal);
+        usedCoupon = c.code;
+      }
+      const r = { id: rid(), userId: s.user.id, username: s.user.username, plan: duration, status: "pending", createdAt: Date.now(), resolvedAt: 0,
+        priceBase: Number.isFinite(basePrice) ? basePrice : null, priceFinal, coupon: usedCoupon };
       await set("renewals/" + r.id, r);
       return json({ request: r }, 201);
     }
@@ -270,10 +362,14 @@ export default async (req) => {
       const latest = arr.reduce((a, x) => Math.max(a, x.updatedAt || 0), 0);
       const mine = await myRenewals(s.user.id);
       const approved = mine.find(r => r.status === "approved");
+      const exp = await expiryMsg();
+      const expiring = pu.active && pu.plan !== "life" && pu.daysLeft <= 2;
       return json({ key, latest, ...(await notifMsg()),
         renewalApprovedAt: approved ? approved.resolvedAt : 0,
         renewalTitle: "تم قبول التجديد ✅",
-        renewalText: "اشتراكك اتمدد بنجاح — كمل فشخ يا وحش 🔥" });
+        renewalText: "اشتراكك اتمدد بنجاح — كمل فشخ يا وحش 🔥",
+        expiryAlertAt: expiring ? pu.expiresAt : 0,
+        expiryTitle: exp.title, expiryText: exp.text });
     }
     if (p === "/api/admin/login" && req.method === "POST") {
       const { password } = await req.json();
@@ -287,7 +383,14 @@ export default async (req) => {
       if (p === "/api/admin/users" && req.method === "GET") {
         const keys = await listPrefix("users/");
         const users = [];
-        for (const k of keys) { const u = await get(k); if (u) users.push(publicUser(u)); }
+        for (const k of keys) {
+          const u = await get(k);
+          if (!u) continue;
+          const pu = publicUser(u);
+          pu.refCode = u.refCode || ""; pu.refCount = u.refCount || 0;
+          pu.deviceKey = u.deviceKey || ""; pu.deviceModel = u.deviceModel || "";
+          users.push(pu);
+        }
         return json({ users });
       }
       if (p === "/api/admin/export" && req.method === "GET") {
@@ -309,7 +412,7 @@ export default async (req) => {
         return json({ imported: n });
       }
       if (p === "/api/admin/users" && req.method === "POST") {
-        const { username, password, duration } = await req.json();
+        const { username, password, duration, referral } = await req.json();
         const uname = String(username || "").trim();
         if (uname.length < 3) return json({ error: "username_too_short" }, 400);
         const npw = normPw(password);
@@ -320,7 +423,10 @@ export default async (req) => {
         const salt = rand16();
         const u = { id: rid(), username: uname, salt, hash: await hashPassword(npw, salt), plan: duration, createdAt: Date.now(), expiresAt: Date.now() + days * 86400000, status: "active" };
         await putUser(u);
-        return json({ user: publicUser(u) }, 201);
+        await ensureRefCode(u);
+        let refRes = null;
+        if (referral && String(referral).trim()) { refRes = await applyReferral(u, referral); }
+        return json({ user: publicUser(u), referral: refRes }, 201);
       }
       if (p === "/api/admin/renewals" && req.method === "GET") {
         const keys = await listPrefix("renewals/");
@@ -445,6 +551,87 @@ export default async (req) => {
         const v = { title: String(b.title || "").slice(0, 80), text: String(b.text || "").slice(0, 240) };
         await set("meta/notif", v);
         return json(v);
+      }
+      if (p === "/api/admin/expirynotif" && req.method === "GET") {
+        return json(await expiryMsg());
+      }
+      if (p === "/api/admin/expirynotif" && req.method === "POST") {
+        const b = await req.json();
+        const v = { title: String(b.title || "").slice(0, 80), text: String(b.text || "").slice(0, 240) };
+        await set("meta/expirynotif", v);
+        return json(v);
+      }
+      if (p === "/api/admin/referralcfg" && req.method === "GET") {
+        return json(await referralCfg());
+      }
+      if (p === "/api/admin/referralcfg" && req.method === "POST") {
+        const b = await req.json();
+        const g = Math.min(30, Math.max(1, parseInt(b.giftDays, 10) || 3));
+        await set("meta/referral", { giftDays: g });
+        return json({ giftDays: g });
+      }
+      if (p === "/api/admin/coupons" && req.method === "GET") {
+        const keys = await listPrefix("coupons/");
+        const out = [];
+        for (const k of keys) { const c = await get(k); if (c) out.push(c); }
+        out.sort((a, b) => b.createdAt - a.createdAt);
+        return json({ coupons: out });
+      }
+      if (p === "/api/admin/coupons/save" && req.method === "POST") {
+        const b = await req.json();
+        const code = String(b.code || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (code.length < 3) return json({ error: "code_too_short" }, 400);
+        const type = b.type === "fixed" ? "fixed" : "percent";
+        const value = Math.max(0, parseFloat(b.value) || 0);
+        if (!value) return json({ error: "bad_value" }, 400);
+        if (type === "percent" && value > 90) return json({ error: "bad_value" }, 400);
+        const existing = await get("coupons/" + code);
+        const c = { code, type, value, active: existing ? existing.active !== false : true, createdAt: existing ? existing.createdAt : Date.now() };
+        await set("coupons/" + code, c);
+        return json({ coupon: c });
+      }
+      if (p === "/api/admin/coupons/toggle" && req.method === "POST") {
+        const b = await req.json();
+        const code = String(b.code || "").trim().toUpperCase();
+        const c = await get("coupons/" + code);
+        if (!c) return json({ error: "not_found" }, 404);
+        c.active = !c.active;
+        await set("coupons/" + code, c);
+        return json({ coupon: c });
+      }
+      if (p === "/api/admin/coupons/delete" && req.method === "POST") {
+        const b = await req.json();
+        await del("coupons/" + String(b.code || "").trim().toUpperCase());
+        return json({ ok: true });
+      }
+      if (p === "/api/admin/stats" && req.method === "GET") {
+        const ukeys = await listPrefix("users/");
+        let active = 0, expired = 0;
+        const expiring = [];
+        const modelCount = {};
+        for (const k of ukeys) {
+          const u = await get(k);
+          if (!u) continue;
+          const pu = publicUser(u);
+          if (pu.active) active++; else expired++;
+          if (pu.active && u.plan !== "life" && pu.daysLeft <= 7) expiring.push({ username: u.username, daysLeft: pu.daysLeft, plan: u.plan });
+          if (u.deviceKey) modelCount[u.deviceKey] = (modelCount[u.deviceKey] || 0) + 1;
+        }
+        expiring.sort((a, b) => a.daysLeft - b.daysLeft);
+        const pay = await paymentInfo();
+        const dnow = new Date();
+        const mStart = Date.UTC(dnow.getUTCFullYear(), dnow.getUTCMonth(), 1);
+        let monthIncome = 0, monthApproved = 0;
+        const rkeys = await listPrefix("renewals/");
+        for (const k of rkeys) {
+          const r = await get(k);
+          if (!r || r.status !== "approved" || !(r.resolvedAt >= mStart)) continue;
+          monthApproved++;
+          if (Number.isFinite(r.priceFinal)) monthIncome += r.priceFinal;
+          else { const pr = parseFloat(pay.prices[r.plan]); if (Number.isFinite(pr)) monthIncome += pr; }
+        }
+        const topModels = Object.entries(modelCount).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([model, count]) => ({ model, count }));
+        return json({ active, expired, monthIncome, monthApproved, expiringSoon: expiring, topModels });
       }
       const m2 = p.match(/^\/api\/admin\/users\/([a-f0-9]+)(\/(cancel|reactivate|extend|password))?$/);
       if (m2) {

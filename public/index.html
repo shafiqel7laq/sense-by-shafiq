@@ -39,6 +39,8 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
 .krow .v{color:var(--acc2);font-weight:700;text-align:left}
 .krow .d{color:var(--mut);font-size:11px;width:100%;margin-top:3px;line-height:1.6}
 .note{font-size:12px;color:var(--mut);text-align:center;margin-top:10px;line-height:1.7}
+.ltr{direction:ltr;unicode-bidi:isolate;text-align:left}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
 </style>
 </head>
 <body>
@@ -51,8 +53,8 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
   <!-- login -->
   <div id="loginView" class="card">
     <h2 style="font-size:17px">تسجيل الدخول</h2>
-    <input id="u" placeholder="اسم المستخدم" autocomplete="username">
-    <input id="p" type="password" placeholder="كلمة السر" autocomplete="current-password">
+    <input id="u" dir="ltr" class="ltr" placeholder="اسم المستخدم" autocomplete="username">
+    <input id="p" type="password" dir="ltr" class="ltr" placeholder="كلمة السر" autocomplete="current-password">
     <div class="err" id="loginErr"></div>
     <button onclick="doLogin()">دخول</button>
     <div class="note">ليس لديك حساب؟ تواصل مع البائع اللي اشتريت منه.</div>
@@ -65,8 +67,27 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
       <span class="badge" id="subBadge"></span>
     </div>
     <button onclick="openRenew()">جدد اشتراكك 🔄</button>
+    <div id="expBanner" class="hidden" style="background:#3a1d12;border:1px solid #6b4213;border-radius:12px;padding:12px;margin-top:12px;font-size:14px;line-height:1.8;text-align:center">
+      <div id="expText"></div>
+      <button onclick="openRenew()">جدد دلوقتي 🔄</button>
+    </div>
     <div id="streakLine" class="note" style="font-size:15px;color:var(--acc2)"></div>
     <div id="renewStatusApp" class="note"></div>
+
+    <div class="card" id="refCard">
+      <h2 style="font-size:15px">ادعُ صحابك واكسب أيام 🎁</h2>
+      <div class="note">كود الإحالة بتاعك — ابعته لصحابك، وأي حد يدخل بيه ياخد هدية تضاف لاشتراكك</div>
+      <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:10px">
+        <span id="myRefCode" class="ltr mono" style="font-size:24px;font-weight:800;color:var(--acc2);letter-spacing:2px"></span>
+        <a class="link" onclick="copyRef()">نسخ</a>
+      </div>
+      <div id="refCountLine" class="note"></div>
+      <div id="refEnterBox">
+        <input id="refIn" dir="ltr" class="ltr" placeholder="عندك كود إحالة من صاحبك؟ اكتبه هنا">
+        <div class="err" id="refErr"></div>
+        <button class="ghost" onclick="submitRef()">تفعيل الكود</button>
+      </div>
+    </div>
 
     <div class="card" id="deviceCard">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -140,6 +161,12 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
     <div class="hrow"><h2>تجديد الاشتراك</h2><a class="link" onclick="closeRenew()">رجوع</a></div>
     <div id="payInfo" style="background:var(--card2);border:1px solid #2a3452;border-radius:12px;padding:12px;margin-top:10px;font-size:14px;line-height:2"></div>
     <div id="durList"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <input id="couponIn" dir="ltr" class="ltr" placeholder="كود خصم؟" style="flex:1;margin-top:0">
+      <button class="ghost" style="width:auto;padding:10px 18px;margin-top:0" onclick="applyCoupon()">تطبيق</button>
+    </div>
+    <div id="couponMsg" class="note"></div>
+    <div id="priceLine" class="note" style="font-size:15px"></div>
     <div class="err" id="renewErr"></div>
     <button id="sentBtn" onclick="submitRenew()">بعتت الفلوس ✅</button>
     <div class="note">بعد الضغط، الأدمن يراجع التحويل ويفعّل التجديد — هتشوف الحالة هنا وهيوصلك إشعار.</div>
@@ -226,11 +253,45 @@ function render(d){
   api('/api/rate/mine?key='+encodeURIComponent(curKey)).then(function(r){ if(r.status===200){ myRatings = r.body.ratings||{}; paintRatings(); } });
 }
 let renewSel = '1m';
+let payPrices = {};
+let appliedCoupon = null;
+function paintPrice(){
+  const el = document.getElementById('priceLine');
+  const base = parseFloat(payPrices[renewSel]);
+  if(!Number.isFinite(base)){ el.textContent=''; return; }
+  if(appliedCoupon){
+    const fin = appliedCoupon.type==='percent' ? Math.max(0,Math.round(base*(100-appliedCoupon.value)/100)) : Math.max(0,base-appliedCoupon.value);
+    el.innerHTML = 'السعر: <s style="color:var(--mut)">'+base+'</s> ← <b style="color:var(--ok)">'+fin+' جنيه</b>';
+  } else { el.innerHTML = 'السعر: <b style="color:var(--acc2)">'+base+' جنيه</b>'; }
+}
+async function applyCoupon(){
+  const code = document.getElementById('couponIn').value.trim();
+  const msg = document.getElementById('couponMsg');
+  if(!code){ appliedCoupon=null; msg.textContent=''; paintPrice(); return; }
+  const r = await api('/api/coupon/check',{method:'POST',body:JSON.stringify({code:code, duration:renewSel})});
+  if(r.status===200){ appliedCoupon=r.body; msg.textContent='كود '+r.body.code+' شغال ✅'; }
+  else { appliedCoupon=null; msg.textContent='الكود ده مش شغال ❌'; }
+  paintPrice();
+}
+function copyRef(){
+  const c = document.getElementById('myRefCode').textContent;
+  if(c && navigator.clipboard){ navigator.clipboard.writeText(c); }
+}
+async function submitRef(){
+  document.getElementById('refErr').textContent='';
+  const code = document.getElementById('refIn').value.trim();
+  if(!code) return;
+  const r = await api('/api/referral',{method:'POST',body:JSON.stringify({code:code})});
+  if(r.status===200){ document.getElementById('refEnterBox').innerHTML='<div class="note" style="color:var(--ok)">تمام ✅ الكود اتفعّل وصاحبك خد هديته</div>'; return; }
+  const e = r.body && r.body.error;
+  document.getElementById('refErr').textContent = e==='bad_code' ? 'الكود ده مش صحيح' : e==='own_code' ? 'مينفعش تستخدم كودك انت يا وحش' : e==='already_used' ? 'انت مستخدم كود إحالة قبل كده' : 'حصل خطأ، جرب تاني';
+}
 async function openRenew(){
   document.getElementById('renewErr').textContent='';
   const r = await api('/api/renewal/info');
   if(r.status!==200){ return; }
   const pay = r.body.payment || {};
+  payPrices = pay.prices || {};
   const NAMES = {'1w':'أسبوع','2w':'أسبوعين','1m':'شهر','life':'مدى الحياة ♾️'};
   document.getElementById('payInfo').innerHTML = 'حوّل على: <b style="color:var(--acc2)">'+(pay.method||'')+'</b>' +
     (pay.number ? '<br>الرقم: <b style="color:var(--acc2);font-size:17px" id="payNum">'+pay.number+'</b> <a class="link" onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+pay.number+'\')">نسخ</a>' : '<br><span class="mut">(البائع لسه مضيفش رقمه — كلمه)</span>');
@@ -238,6 +299,9 @@ async function openRenew(){
     const pr = (pay.prices && pay.prices[d]) ? pay.prices[d] : '—';
     return '<div class="krow" style="cursor:pointer" onclick="pickDur(this,\''+d+'\')"><div style="flex:1"><div class="k">'+NAMES[d]+'</div></div><div class="v">'+pr+'</div></div>';
   }).join('');
+  appliedCoupon = null;
+  document.getElementById('couponIn').value = '';
+  document.getElementById('couponMsg').textContent = '';
   pickDur(null, '1m');
   ['loginView','appView','blockedView'].forEach(v=>document.getElementById(v).classList.add('hidden'));
   document.getElementById('renewView').classList.remove('hidden');
@@ -247,11 +311,13 @@ function pickDur(el, d){
   [...document.querySelectorAll('#durList .krow')].forEach(x=>x.style.background='');
   if(el){ el.style.background='#1c2338'; }
   else { const rows=[...document.querySelectorAll('#durList .krow')]; const i={'1w':0,'2w':1,'1m':2,'life':3}[d]; if(rows[i]) rows[i].style.background='#1c2338'; }
+  paintPrice();
 }
 async function submitRenew(){
   document.getElementById('renewErr').textContent='';
-  const r = await api('/api/renewal',{method:'POST',body:JSON.stringify({duration:renewSel})});
+  const r = await api('/api/renewal',{method:'POST',body:JSON.stringify({duration:renewSel, coupon: appliedCoupon ? appliedCoupon.code : ''})});
   if(r.status===200 || r.status===201){ showRenewStatus('طلبك وصل ⏳ الأدمن بيراجع التحويل، وهيوصلك إشعار أول ما يتقبل.'); boot(); return; }
+  if(r.body && r.body.error==='invalid_coupon'){ document.getElementById('renewErr').textContent='كود الخصم مش شغال — شيله أو جرب كود تاني'; return; }
   document.getElementById('renewErr').textContent='حصل خطأ، جرب تاني';
 }
 function closeRenew(){ document.getElementById('renewView').classList.add('hidden'); boot(); }
@@ -317,6 +383,22 @@ async function boot(){
   const u = me.body.user;
   if(!u.active){ show('blockedView'); checkMine(); return; }
   document.getElementById('hello').textContent = 'أهلًا '+u.username;
+  const rf = me.body.referral || {};
+  document.getElementById('myRefCode').textContent = rf.code || '';
+  document.getElementById('refCountLine').textContent = rf.count ? 'عدد اللي دخلوا بكودك: ' + rf.count : '';
+  if(rf.used){ document.getElementById('refEnterBox').classList.add('hidden'); }
+  if(u.plan!=='life' && u.daysLeft<=2){
+    const en = me.body.expNotif || {};
+    document.getElementById('expText').textContent = en.text || 'اشتراكك قرب يخلص!';
+    document.getElementById('expBanner').classList.remove('hidden');
+    try{
+      const dayKey = new Date().toISOString().slice(0,10);
+      if(window.AndroidBridge && AndroidBridge.showNotification && localStorage.getItem('ff_exp_day')!==dayKey){
+        AndroidBridge.showNotification(en.title || 'Sense by Shafiq', en.text || '');
+        localStorage.setItem('ff_exp_day', dayKey);
+      }
+    }catch(e){}
+  }
   if(me.body.streak){ const st=me.body.streak; document.getElementById('streakLine').textContent = st.count>0 ? '🔥 '+st.count+' يوم ورا بعض — وصّل 7 وخد '+(st.giftDays===1?'يوم':st.giftDays+' أيام')+' هدية' : 'ابدأ ستريكك النهارده 🔥'; }
   if(me.body.nick){ document.getElementById('nick').value = me.body.nick; }
   loadBeast();

@@ -229,6 +229,7 @@ export default async (req) => {
       const stored = await getSets(key);
       const base = { id: "base", name: "السيت الأساسي", note: "مولّد تلقائيًا حسب موبايلك", sens: mres.device.sens, dpi: mres.device.dpi, updatedAt: 0 };
       const latest = stored.reduce((a, x) => Math.max(a, x.updatedAt || 0), 0);
+      await set("devseen/" + key, Date.now()).catch(() => {});
       return json({ user: pu, query: model, ...mres, key, sets: [base, ...stored], setsUpdatedAt: latest });
     }
     if (p === "/api/models" && req.method === "GET") {

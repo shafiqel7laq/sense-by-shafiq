@@ -206,4 +206,4 @@ function match(query) {
 
 function list() { return MODELS.map(m => m.name); }
 
-export { match, list };
+export { match, list, MODELS };

@@ -101,6 +101,19 @@ async function layoutsMsg() {
     claw: (l && l.claw) || DEFAULT_LAYOUTS.claw
   };
 }
+
+function mergedLayouts(ov) {
+  ov = ov || {};
+  return LAYOUTS_V2.map(t => ({ fingers: t.fingers, patterns: t.patterns.map(p => {
+    const o = ov[p.id];
+    if (!o) return p;
+    return { ...p, name: o.name || p.name, desc: o.desc !== undefined ? o.desc : p.desc, premium: o.premium === true, vals: o.vals ? { ...p.vals, ...o.vals } : p.vals };
+  })}));
+}
+async function layoutsV2() {
+  const m = await get("meta/layouts2");
+  return mergedLayouts(m && m.overrides);
+}
 async function dailyContent() {
   const d = await get("meta/daily");
   if (d && d.training && d.tip) return d;
@@ -340,7 +353,7 @@ export default async (req) => {
       const fb = mres.device.fpsBoost || null;
       if (fb) { const gen = await fpsGeneralTips(); fb.device = (gen || fb.deviceGeneral || []).concat(fb.deviceTier || []); delete fb.deviceGeneral; delete fb.deviceTier; }
       return json({ user: pu, query: model, ...mres, key, sets: [base, ...stored], setsUpdatedAt: latest,
-        daily: await dailyContent(), layouts: await layoutsMsg() });
+        daily: await dailyContent(), layouts: await layoutsMsg(), layoutsV2: await layoutsV2() });
     }
     if (p === "/api/models" && req.method === "GET") {
       const s = await getSession(req);

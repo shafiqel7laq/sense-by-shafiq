@@ -187,6 +187,12 @@ th{color:var(--mut);font-weight:600}
     </div>
 
     <div class="card">
+      <h2 style="font-size:16px">جواهر ودروبات مستحقة من عجلة الحظ 🎁</h2>
+      <div class="mut">الجواهر والدروب بتتسلم يدويًا — لما تسلّم دوس "تم".</div>
+      <div id="wheelPend" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
       <h2 style="font-size:16px">ترتيب الأزرار المقترح (يظهر للعميل) 🎮</h2>
       <div class="mut">اختار النمط وعدّل اسمه ووصفه وقيم الأزرار. أماكن الأزرار على الرسمة ثابتة من الكود.</div>
       <div class="row" style="margin-top:6px"><select id="layPatSel" onchange="loadLayPat()" style="min-width:260px"></select><button class="ghost" onclick="loadLayouts2()">تحديث</button></div>
@@ -253,7 +259,7 @@ async function adminLogin(){
   sessionStorage.setItem('ff_admin', at);
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('panel').classList.remove('hidden');
-  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts2(); loadFpsTips();
+  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts2(); loadFpsTips(); loadWheelPend();
 }
 async function addUser(){
   document.getElementById('addErr').textContent='';
@@ -570,7 +576,25 @@ async function saveFpsTips(){
   if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); } else { e.textContent='حصل خطأ أثناء الحفظ'; }
 }
 async function resetFpsTips(){ document.getElementById('fpsTips').value=''; await saveFpsTips(); }
-if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts2(); loadFpsTips(); }
+if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts2(); loadFpsTips(); loadWheelPend(); }
+
+async function loadWheelPend(){
+  const r = await api('/api/admin/wheelpending');
+  if(r.status!==200) return;
+  const items = (r.body.items||[]).filter(x=>!x.done);
+  const el = document.getElementById('wheelPend');
+  if(!items.length){ el.innerHTML = '<div class="mut">مفيش جوايز مستنية تسليم ✅</div>'; return; }
+  el.innerHTML = items.map(function(x){
+    const d = new Date(x.ts).toLocaleString('ar-EG',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #232c47">'+
+      '<div><b>'+esc(x.username)+'</b> — '+esc(x.label)+' <span class="mut">'+d+'</span></div>'+
+      '<button class="ghost" style="width:auto;padding:6px 14px" onclick="deliverWheelPrize(\''+x.id+'\')">تم التسليم ✅</button></div>';
+  }).join('');
+}
+async function deliverWheelPrize(id){
+  await api('/api/admin/wheelpending/deliver',{method:'POST',body:JSON.stringify({id:id})});
+  loadWheelPend();
+}
 </script>
 </body>
 </html>

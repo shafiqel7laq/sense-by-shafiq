@@ -10,6 +10,20 @@ const DURATIONS = { "1w": 7, "2w": 14, "1m": 30, "life": 36500 };
 function durationDays(d) {
   return DURATIONS[d] || null;
 }
+function cairoToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(new Date());
+}
+const WHEEL_PRIZES = [
+  { id: "d3", w: 45, label: "اشتراك هدية 3 أيام 🎁", days: 3 },
+  { id: "w1", w: 30, label: "اشتراك هدية أسبوع 🎁", days: 7 },
+  { id: "gems", w: 18, label: "100 جوهرة 💎" },
+  { id: "drop", w: 7, label: "دروب 1$ 💵" }
+];
+function wheelRoll() {
+  let r = Math.random() * 100;
+  for (const p of WHEEL_PRIZES) { r -= p.w; if (r < 0) return p; }
+  return WHEEL_PRIZES[0];
+}
 function dayOfYear() {
   const n = new Date();
   return Math.floor((n.getTime() - new Date(n.getFullYear(), 0, 0).getTime()) / 86400000);
@@ -258,6 +272,34 @@ export default async (req) => {
       const weak = {};
       for (const k in skills) { if (skills[k] < 50) { const sg = aimSuggestion(k, dy); if (sg) weak[k] = sg; } }
       return json({ best, history: h.results, overall, weak });
+    }
+    if (p === "/api/wheel" && req.method === "GET") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const pu = publicUser(s.user);
+      const w = (await get("wheel/" + s.user.id)) || {};
+      const today = cairoToday();
+      return json({ active: pu.active, canSpin: pu.active && w.last !== today, todayPrize: w.last === today ? w.lastPrize : null });
+    }
+    if (p === "/api/wheel/spin" && req.method === "POST") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const pu = publicUser(s.user);
+      if (!pu.active) return json({ error: "not_active" }, 403);
+      const today = cairoToday();
+      const w = (await get("wheel/" + s.user.id)) || {};
+      if (w.last === today) return json({ error: "already_spun", prize: w.lastPrize }, 409);
+      const prize = wheelRoll();
+      if (prize.days) {
+        s.user.expiresAt = Math.max(Date.now(), s.user.expiresAt || 0) + prize.days * 86400000;
+        await putUser(s.user);
+      } else {
+        const list = (await get("wheelpending")) || [];
+        list.push({ id: rid(), uid: s.user.id, username: s.user.username, prize: prize.id, label: prize.label, ts: Date.now(), done: false });
+        await set("wheelpending", list.slice(-500));
+      }
+      await set("wheel/" + s.user.id, { last: today, lastPrize: { id: prize.id, label: prize.label, days: prize.days || 0 } });
+      return json({ prize: { id: prize.id, label: prize.label, days: prize.days || 0 }, daysLeft: publicUser(s.user).daysLeft });
     }
     if (p === "/api/fpsmode" && req.method === "POST") {
       const s = await getSession(req);
@@ -676,6 +718,19 @@ export default async (req) => {
         c.active = !c.active;
         await set("coupons/" + code, c);
         return json({ coupon: c });
+      }
+      if (p === "/api/admin/wheelpending" && req.method === "GET") {
+        const list = ((await get("wheelpending")) || []).slice().reverse();
+        return json({ items: list.slice(0, 100) });
+      }
+      if (p === "/api/admin/wheelpending/deliver" && req.method === "POST") {
+        const { id } = await req.json();
+        const list = (await get("wheelpending")) || [];
+        const it = list.find(x => x.id === id);
+        if (!it) return json({ error: "not_found" }, 404);
+        it.done = true;
+        await set("wheelpending", list);
+        return json({ ok: true });
       }
       if (p === "/api/admin/coupons/delete" && req.method === "POST") {
         const b = await req.json();

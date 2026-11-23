@@ -117,6 +117,18 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
       <button onclick="openAim()">ابدأ الاختبار 🔥</button>
     </div>
 
+    <div class="card" id="wheelCard" style="text-align:center">
+      <h2 style="font-size:15px">عجلة الحظ 🎡</h2>
+      <div class="mut" style="font-size:13px;margin-top:4px">لفة مجانية كل يوم — جوايز: اشتراكات هدية، 100 جوهرة 💎، ودروب 1$ 💵</div>
+      <div style="position:relative;width:min(300px,84vw);margin:16px auto 6px">
+        <div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:20px solid var(--acc);z-index:2;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5))"></div>
+        <canvas id="wheelCv" style="width:100%;display:block"></canvas>
+      </div>
+      <div id="wheelMsg" style="font-size:15px;font-weight:700;min-height:24px;margin:8px 0"></div>
+      <button id="wheelBtn" onclick="spinWheel()">لف العجلة 🎰</button>
+      <div class="note" id="wheelNote" style="margin-top:8px"></div>
+    </div>
+
     <div class="card" id="deviceCard">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
@@ -937,6 +949,7 @@ const NAV_PAGES = [
   {id:'layouts', label:'الأزرار', icon:'🎮', title:'ترتيب الأزرار 🎮'},
   {id:'train', label:'التدريب', icon:'🏋️', title:'تدريبات الآيم 🏋️'},
   {id:'aim', label:'اختبار', icon:'⚡', title:'اختبار الآيم ⚡'},
+  {id:'wheel', label:'الحظ', icon:'🎡', title:'عجلة الحظ 🎡'},
   {id:'perf', label:'الأداء', icon:'🚀', title:'أداء الجهاز 🚀'}
 ];
 const PAGE_ELS = {
@@ -946,6 +959,7 @@ const PAGE_ELS = {
   layouts: ['layCard'],
   train: ['trainCard'],
   aim: ['aimCard'],
+  wheel: ['wheelCard'],
   perf: ['controlsCard','fpsCard']
 };
 let curPage = 'home';
@@ -954,6 +968,7 @@ function goPage(p){
   for(const k in PAGE_ELS) PAGE_ELS[k].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display = (k===p)?'':'none'; });
   const pg = NAV_PAGES.find(x=>x.id===p);
   document.getElementById('pageTitle').textContent = pg ? pg.title : '';
+  if(p==='wheel') loadWheel();
   [...document.getElementById('navBot').children].forEach(b=>b.classList.toggle('on', b.dataset.p===p));
   window.scrollTo(0,0);
 }
@@ -962,6 +977,95 @@ function initNav(){
   nb.innerHTML = NAV_PAGES.map(p=>'<button data-p="'+p.id+'" onclick="goPage(\''+p.id+'\')"><span class="ic">'+p.icon+'</span>'+p.label+'</button>').join('');
 }
 initNav();
+
+// ===== عجلة الحظ =====
+const WHEEL_SEGS = [
+  {p:'d3', t:'3 أيام 🎁'}, {p:'gems', t:'💎 100'}, {p:'w1', t:'أسبوع 🎁'}, {p:'d3', t:'3 أيام 🎁'},
+  {p:'drop', t:'1$ 💵'}, {p:'d3', t:'3 أيام 🎁'}, {p:'gems', t:'💎 100'}, {p:'w1', t:'أسبوع 🎁'}
+];
+let wheelAngle = 0, wheelSpinning = false, wheelState = null;
+function drawWheel(){
+  const cv = document.getElementById('wheelCv'); if(!cv) return;
+  const dpr = window.devicePixelRatio||1;
+  const W = cv.clientWidth; if(!W) return;
+  cv.width = W*dpr; cv.height = W*dpr;
+  const ctx = cv.getContext('2d');
+  const cx = W/2, cy = W/2, R = W/2 - 4;
+  ctx.save(); ctx.scale(dpr,dpr); ctx.translate(cx,cy); ctx.rotate(wheelAngle*Math.PI/180);
+  const n = WHEEL_SEGS.length, seg = 2*Math.PI/n;
+  for(let i=0;i<n;i++){
+    const a0 = -Math.PI/2 + i*seg;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R,a0,a0+seg); ctx.closePath();
+    ctx.fillStyle = WHEEL_SEGS[i].p==='drop' ? '#ff7a1a' : (i%2 ? '#1c2440' : '#232c47');
+    ctx.fill();
+    ctx.strokeStyle = '#0b0e17'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.save();
+    ctx.rotate(a0 + seg/2);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = WHEEL_SEGS[i].p==='drop' ? '#1a1005' : '#eef1f8';
+    ctx.font = 'bold 13px system-ui';
+    ctx.fillText(WHEEL_SEGS[i].t, R*0.62, 0);
+    ctx.restore();
+  }
+  ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.lineWidth = 4; ctx.strokeStyle = '#ff7a1a'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,26,0,7); ctx.fillStyle = '#10141f'; ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle='#ff7a1a'; ctx.stroke();
+  ctx.font = '18px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎡',0,1);
+  ctx.restore();
+}
+async function loadWheel(){
+  drawWheel();
+  const r = await api('/api/wheel');
+  if(r.status!==200) return;
+  wheelState = r.body;
+  const btn = document.getElementById('wheelBtn'), msg = document.getElementById('wheelMsg'), note = document.getElementById('wheelNote');
+  if(!r.body.active){ btn.disabled = true; btn.textContent = 'العجلة للمشتركين الفعالين 🔒'; msg.textContent=''; note.textContent = 'جدد اشتراكك عشان تلف العجلة كل يوم 🎡'; return; }
+  if(!r.body.canSpin){
+    btn.disabled = true; btn.textContent = 'لفيت النهارده ✅';
+    msg.innerHTML = 'جايزتك النهارده: <span style="color:var(--acc2)">'+(r.body.todayPrize?r.body.todayPrize.label:'')+'</span>';
+    note.textContent = 'ارجع بكرة للفة جديدة 🍀';
+    return;
+  }
+  btn.disabled = false; btn.textContent = 'لف العجلة 🎰'; msg.textContent=''; note.textContent='';
+}
+function wheelResultText(pr){
+  if(pr.days) return { big: pr.label, small: 'اتضافت لاشتراكك تلقائيًا 🎉 عيش يا وحش!' };
+  return { big: pr.label, small: 'مبروك يا وحش! 🎉 سجّلناها — شفيق هيتواصل معاك يسلّمك جايزتك قريب' };
+}
+async function spinWheel(){
+  if(wheelSpinning) return;
+  wheelSpinning = true;
+  const btn = document.getElementById('wheelBtn'), msg = document.getElementById('wheelMsg');
+  btn.disabled = true; msg.textContent = 'بنلف... 🎰';
+  const r = await api('/api/wheel/spin',{method:'POST'});
+  if(r.status===409){ msg.innerHTML = 'لفيت النهارده! جايزتك: <span style="color:var(--acc2)">'+(r.body.prize?r.body.prize.label:'')+'</span>'; btn.textContent='لفيت النهارده ✅'; wheelSpinning=false; return; }
+  if(r.status===403){ msg.textContent = 'العجلة للمشتركين الفعالين — جدد اشتراكك الأول 🔒'; wheelSpinning=false; return; }
+  if(r.status!==200){ msg.textContent = 'حصل خطأ — جرب تاني'; btn.disabled = false; wheelSpinning=false; return; }
+  const pr = r.body.prize;
+  const idxs = WHEEL_SEGS.map((sg,i)=>sg.p===pr.id?i:-1).filter(i=>i>=0);
+  const idx = idxs[Math.floor(Math.random()*idxs.length)];
+  const segDeg = 360/WHEEL_SEGS.length;
+  const cur = ((wheelAngle%360)+360)%360;
+  let target = (360 - (idx*segDeg + segDeg/2)) % 360;
+  let delta = target - cur; if(delta<=0) delta += 360;
+  const total = delta + 360*5;
+  const start = performance.now(), dur = 4600, from = wheelAngle;
+  function frame(now){
+    const t = Math.min(1,(now-start)/dur);
+    const e = 1-Math.pow(1-t,4);
+    wheelAngle = from + total*e;
+    drawWheel();
+    if(t<1){ requestAnimationFrame(frame); return; }
+    wheelAngle = from + total;
+    drawWheel();
+    const rt = wheelResultText(pr);
+    msg.innerHTML = '<span style="font-size:19px;color:var(--acc)">'+rt.big+'</span><br><span style="font-size:13px;font-weight:400" class="mut">'+rt.small+'</span>';
+    document.getElementById('wheelNote').textContent = 'ارجع بكرة للفة جديدة 🍀';
+    btn.textContent = 'لفيت النهارده ✅';
+    wheelSpinning = false;
+    if(pr.days) boot();
+  }
+  requestAnimationFrame(frame);
+}
 </script>
 <div id="aimOverlay" style="display:none;position:fixed;inset:0;background:#0b0e17;z-index:999;overflow-y:auto">
   <div style="max-width:560px;margin:0 auto;padding:14px">

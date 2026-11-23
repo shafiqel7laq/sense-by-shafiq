@@ -129,15 +129,17 @@ function build(m, matchType, query) {
   if (tier === 2) dpi = null; // 2GB: لا ننصح بتغيير DPI (لاج)
   // low-RAM devices: general sensitivity up a notch (per vortexgaming low tiers)
   const boost = m.ram <= 3 ? 8 : 0;
+  const hz = m.hz || 60;
+  // refresh rate: higher Hz catches overshoot sooner, tolerates a touch more sensitivity (sensiff)
+  const hzBoost = hz >= 120 ? 3 : hz >= 90 ? 1 : -3;
   const sens = {
-    general: clamp(b.general * (m.ram <= 3 ? 0.96 : 1) + boost),
-    redDot: clamp(b.redDot + boost),
-    scope2x: clamp(b.scope2x + boost),
-    scope4x: clamp(b.scope4x + boost),
+    general: clamp(b.general * (m.ram <= 3 ? 0.96 : 1) + boost + hzBoost),
+    redDot: clamp(b.redDot + boost + hzBoost),
+    scope2x: clamp(b.scope2x + boost + hzBoost),
+    scope4x: clamp(b.scope4x + boost + hzBoost),
     sniper: clamp(b.sniper),
     freeLook: clamp(b.freeLook)
   };
-  const hz = m.hz || 60;
   const fps = hz >= 120 ? 'High / Ultra (90-120 إطار)' : hz >= 90 ? 'High (60-90 إطار)' : 'عادي (40-60 إطار)';
   const tips = [];
   if (dpi == null) tips.push('موبايلك رام 2 جيجا أو أقل: منصحش تغيّر DPI نهائيًا عشان اللاج، خلّيه زي ما هو.');
@@ -201,4 +203,4 @@ function match(query) {
 
 function list() { return MODELS.map(m => m.name); }
 
-module.exports = { match, list };
+export { match, list };

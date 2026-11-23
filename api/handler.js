@@ -1,5 +1,6 @@
 // Sense by Shafiq - Vercel edge function (all /api/* routes) with Upstash Redis REST storage
 import { match as matchDevice, list as listModels } from "../devices.js";
+import { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor } from "../content.js";
 
 const UPURL = process.env.UPSTASH_REDIS_REST_URL;
 const UPTOK = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -92,6 +93,23 @@ async function getCoupon(codeRaw) {
   const c = await get("coupons/" + code);
   if (!c || !c.active) return null;
   return c;
+}
+async function layoutsMsg() {
+  const l = await get("meta/layouts");
+  return {
+    twoThumb: (l && l.twoThumb) || DEFAULT_LAYOUTS.twoThumb,
+    claw: (l && l.claw) || DEFAULT_LAYOUTS.claw
+  };
+}
+async function dailyContent() {
+  const d = await get("meta/daily");
+  if (d && d.training && d.tip) return d;
+  const doy = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+  return { date: "", ...dailyFor(doy) };
+}
+async function fpsGeneralTips() {
+  const m = await get("meta/fpstips");
+  return (m && Array.isArray(m.lines) && m.lines.length) ? m.lines : null;
 }
 const DKEYS = Object.keys(DURATIONS);
 async function paymentInfo() {
@@ -192,7 +210,17 @@ export default async (req) => {
       const refCode = await ensureRefCode(s.user);
       return json({ user: publicUser(s.user), nick: s.user.nick || "", streak: { count: st.count || 0, best: st.best || 0, giftDays: cfg.giftDays || 1 },
         referral: { code: refCode, count: s.user.refCount || 0, used: !!s.user.referredBy },
-        expNotif: await expiryMsg() });
+        expNotif: await expiryMsg(), fpsMode: s.user.fpsMode || null });
+    }
+    if (p === "/api/fpsmode" && req.method === "POST") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const b = await req.json();
+      const allowed = ["hz", "gfx", "perf", "bg"];
+      const steps = Array.isArray(b.steps) ? b.steps.filter(x => allowed.includes(x)).slice(0, 10) : [];
+      s.user.fpsMode = { on: !!b.on, steps, updatedAt: Date.now() };
+      await putUser(s.user);
+      return json({ fpsMode: s.user.fpsMode });
     }
     if (p === "/api/referral" && req.method === "POST") {
       const s = await getSession(req);
@@ -305,11 +333,14 @@ export default async (req) => {
       const mres = matchDevice(model);
       const key = mres.key || "generic";
       const stored = await getSets(key);
-      const base = { id: "base", name: "السيت الأساسي", note: "مولّد تلقائيًا حسب موبايلك" + (mres.device.dpiNote ? " — " + mres.device.dpiNote : ""), sens: mres.device.sens, dpi: mres.device.dpi, updatedAt: 0 };
+      const base = { id: "base", name: "السيت الأساسي", note: "مولّد تلقائيًا حسب موبايلك" + (mres.device.dpiNote ? " — " + mres.device.dpiNote : ""), sens: mres.device.sens, dpi: mres.device.dpi, gyro: mres.device.gyro, updatedAt: 0 };
       const latest = stored.reduce((a, x) => Math.max(a, x.updatedAt || 0), 0);
       await set("devseen/" + key, Date.now()).catch(() => {});
       if (s.user.deviceKey !== key || s.user.deviceModel !== model) { s.user.deviceKey = key; s.user.deviceModel = model; await putUser(s.user); }
-      return json({ user: pu, query: model, ...mres, key, sets: [base, ...stored], setsUpdatedAt: latest });
+      const fb = mres.device.fpsBoost || null;
+      if (fb) { const gen = await fpsGeneralTips(); fb.device = (gen || fb.deviceGeneral || []).concat(fb.deviceTier || []); delete fb.deviceGeneral; delete fb.deviceTier; }
+      return json({ user: pu, query: model, ...mres, key, sets: [base, ...stored], setsUpdatedAt: latest,
+        daily: await dailyContent(), layouts: await layoutsMsg() });
     }
     if (p === "/api/models" && req.method === "GET") {
       const s = await getSession(req);
@@ -603,6 +634,25 @@ export default async (req) => {
         const b = await req.json();
         await del("coupons/" + String(b.code || "").trim().toUpperCase());
         return json({ ok: true });
+      }
+      if (p === "/api/admin/layouts" && req.method === "GET") {
+        return json(await layoutsMsg());
+      }
+      if (p === "/api/admin/layouts" && req.method === "POST") {
+        const b = await req.json();
+        const v = { twoThumb: String(b.twoThumb || "").slice(0, 900), claw: String(b.claw || "").slice(0, 900) };
+        await set("meta/layouts", v);
+        return json(v);
+      }
+      if (p === "/api/admin/fpstips" && req.method === "GET") {
+        const m = await get("meta/fpstips");
+        return json({ lines: (m && m.lines) || [] });
+      }
+      if (p === "/api/admin/fpstips" && req.method === "POST") {
+        const b = await req.json();
+        const lines = String(b.text || "").split("\n").map(x => x.trim()).filter(Boolean).slice(0, 20);
+        await set("meta/fpstips", { lines });
+        return json({ lines });
       }
       if (p === "/api/admin/stats" && req.method === "GET") {
         const ukeys = await listPrefix("users/");

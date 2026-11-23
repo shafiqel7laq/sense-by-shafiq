@@ -28,7 +28,7 @@ button.ghost{background:var(--card2);color:var(--txt);border:1px solid #2a3452}
 .dpi-hero{background:linear-gradient(135deg,#2a1a08,#1a1206);border:1px solid #6b4213;border-radius:16px;padding:18px;text-align:center;margin-top:16px}
 .dpi-hero .num{font-size:44px;font-weight:900;color:var(--acc)}
 .dpi-hero .lbl{color:var(--mut);font-size:13px}
-.tips{background:#12233a;border:1px solid #1e3a5c;border-radius:12px;padding:12px;font-size:13px;line-height:1.8;color:#bcd7f5;margin-top:12px}
+.tips{background:#12233a;border:1px solid #1e3a5c;border-radius:12px;padding:12px;font-size:13px;line-height:1.8;color:#bcd7f5;margin-top:12px;white-space:pre-line}
 .hrow{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
 .hrow h2{font-size:17px}
 a.link{color:var(--acc);font-size:13px;cursor:pointer}
@@ -89,6 +89,12 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
       </div>
     </div>
 
+    <div class="card" id="trainCard">
+      <h2 style="font-size:15px">تمرين اليوم 🎯 <span id="trainDate" class="mut" style="font-size:12px"></span></h2>
+      <div id="trainBody" style="font-size:14px;line-height:1.9;margin-top:8px"></div>
+      <div class="tips" id="tipOfDay" style="margin-top:10px"></div>
+    </div>
+
     <div class="card" id="deviceCard">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
@@ -109,6 +115,7 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
         <div class="stat"><div class="v" id="sSniper">-</div><div class="k">سنايبر</div></div>
         <div class="stat"><div class="v" id="sFree">-</div><div class="k">النظرة الحرة</div></div>
       </div>
+      <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--acc2);font-size:14px">إعدادات الجيروسكوب 🔄</summary><div class="grid" id="gyroGrid"></div></details>
       <div class="grid">
         <div class="stat"><div class="v" id="fps" style="font-size:15px">-</div><div class="k">الفريمات</div></div>
         <div class="stat"><div class="v" id="gfx" style="font-size:15px">-</div><div class="k">الجرافيك</div></div>
@@ -126,6 +133,21 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
     <div class="card">
       <h2 style="font-size:15px;margin-bottom:8px">إعدادات التحكم (Controls & HUD)</h2>
       <div id="controls"></div>
+    </div>
+
+    <div class="card" id="fpsCard">
+      <h2 style="font-size:15px;margin-bottom:8px">رفع الفريمات 🚀 <span class="badge" id="fpsCls"></span></h2>
+      <div id="fpsInGame"></div>
+      <div class="tips" id="fpsDevice" style="margin-top:10px"></div>
+      <button id="fpsModeBtn" onclick="toggleFpsMode()">تشغيل وضع الفريمات 🚀</button>
+      <div class="note">الخطوات دي بتظبط موبايلك واللعبة من إعداداتهم الرسمية — مفيش أي تعديل على اللعبة نفسها ✅</div>
+      <div id="fpsSteps"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:15px;margin-bottom:8px">ترتيب الأزرار المقترح 🎮</h2>
+      <details style="margin-top:6px"><summary style="cursor:pointer;color:var(--acc2);font-size:14px">صوابعين (Thumb)</summary><div id="layThumb" style="font-size:14px;line-height:1.9;margin-top:6px"></div></details>
+      <details style="margin-top:6px"><summary style="cursor:pointer;color:var(--acc2);font-size:14px">كلاو 4 صوابع</summary><div id="layClaw" style="font-size:14px;line-height:1.9;margin-top:6px"></div></details>
     </div>
 
     <div class="card">
@@ -234,8 +256,22 @@ function render(d){
   const rows = (arr) => (arr||[]).map(c => '<div class="krow"><div style="flex:1"><div class="k">'+c.k+'</div>'+(c.d||c.why?'<div class="d">'+(c.d||c.why)+'</div>':'')+'</div><div class="v">'+c.v+'</div></div>').join('');
   document.getElementById('controls').innerHTML = rows(dev.controls);
   document.getElementById('weapons').innerHTML = rows(dev.weapons);
+  const dl = d.daily || {};
+  if(dl.training){ document.getElementById('trainDate').textContent = dl.date ? '('+dl.date+')' : ''; document.getElementById('trainBody').textContent = dl.training.t + ' — ' + dl.training.d; }
+  if(dl.tip){ document.getElementById('tipOfDay').textContent = '💡 نصيحة اليوم: ' + dl.tip; }
+  const ly = d.layouts || {};
+  document.getElementById('layThumb').textContent = ly.twoThumb || '';
+  document.getElementById('layClaw').textContent = ly.claw || '';
   const extra = (d.sets || []).slice(1);
   const lbl = [['general','الحساسية العامة'],['redDot','ريد دوت'],['scope2x','سكوب 2x'],['scope4x','سكوب 4x'],['sniper','سنايبر'],['freeLook','النظرة الحرة']];
+  const glbl = [['general','جايرو عام'],['redDot','ريد دوت'],['scope2x','سكوب 2x'],['scope4x','سكوب 4x'],['sniper','سنايبر']];
+  if(dev.gyro){ document.getElementById('gyroGrid').innerHTML = glbl.map(function(x){ return '<div class="stat"><div class="v">'+dev.gyro[x[0]]+'</div><div class="k">'+x[1]+'</div></div>'; }).join(''); }
+  const fb = dev.fpsBoost;
+  if(fb){
+    document.getElementById('fpsCls').textContent = 'فئة موبايلك: ' + fb.cls;
+    document.getElementById('fpsInGame').innerHTML = rows(fb.inGame);
+    document.getElementById('fpsDevice').textContent = (fb.device||[]).join('\n');
+  }
   curKey = d.key || 'generic';
   document.getElementById('baseRate').innerHTML = rateHtml('base');
   document.getElementById('setsList').innerHTML = extra.length ? extra.map(function(st){
@@ -243,7 +279,9 @@ function render(d){
       '<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--acc2)">'+st.name+'</b>' +
       '<span class="badge">'+(st.dpi ? 'DPI '+st.dpi : 'DPI زي الأساسي')+'</span></div>' +
       (st.note ? '<div class="note" style="text-align:right;margin-top:6px">'+st.note+'</div>' : '') +
-      '<div class="grid">' + lbl.map(function(x){ return '<div class="stat"><div class="v">'+st.sens[x[0]]+'</div><div class="k">'+x[1]+'</div></div>'; }).join('') + '</div>' + rateHtml(st.id) + '</div>';
+      '<div class="grid">' + lbl.map(function(x){ return '<div class="stat"><div class="v">'+st.sens[x[0]]+'</div><div class="k">'+x[1]+'</div></div>'; }).join('') + '</div>' +
+      (st.gyro ? '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--acc2);font-size:13px">إعدادات الجيروسكوب 🔄</summary><div class="grid">' + glbl.map(function(x){ return '<div class="stat"><div class="v">'+st.gyro[x[0]]+'</div><div class="k">'+x[1]+'</div></div>'; }).join('') + '</div></details>' : '') +
+      rateHtml(st.id) + '</div>';
   }).join('') : '<div class="note" style="margin-top:10px">لسه مفيش سيتات إضافية لموبايلك — أول ما ينزل جديد هيوصلك إشعار.</div>';
   try{
     if(window.AndroidBridge){
@@ -255,6 +293,55 @@ function render(d){
 let renewSel = '1m';
 let payPrices = {};
 let appliedCoupon = null;
+let fpsMode = { on: false, steps: [] };
+function paintFpsMode(){
+  const b = document.getElementById('fpsModeBtn');
+  b.textContent = fpsMode.on ? 'وضع الفريمات مفعّل ✅ — اضغط للإيقاف' : 'تشغيل وضع الفريمات 🚀';
+  renderFpsSteps();
+}
+async function renderFpsSteps(){
+  const box = document.getElementById('fpsSteps');
+  if(!fpsMode.on){ box.innerHTML=''; return; }
+  const done = new Set(fpsMode.steps || []);
+  let dm = null;
+  try{ if(window.AndroidBridge && AndroidBridge.getDisplayModes){ dm = JSON.parse(AndroidBridge.getDisplayModes()); } }catch(e){}
+  const steps = [];
+  if(dm && dm.max > 60 && dm.current < dm.max){ steps.push({ id:'hz', txt:'فعّل أعلى تردد للشاشة ('+dm.max+'Hz) — الحالي '+dm.current+'Hz', btn:'افتح إعدادات الشاشة', act:'display' }); }
+  else if(dm && dm.max > 60){ steps.push({ id:'hz', txt:'أعلى تردد للشاشة ('+dm.max+'Hz) شغال بالفعل ✓', auto:true }); }
+  else if(dm){ steps.push({ id:'hz', txt:'شاشتك بتوصل '+dm.max+'Hz كحد أقصى — الخطوة دي مش محتاجاها', auto:true }); }
+  else { steps.push({ id:'hz', txt:'فعّل أعلى تردد شاشة من إعدادات الموبايل > الشاشة' }); }
+  steps.push({ id:'gfx', txt:'ظبط إعدادات الجرافيك اللي فوق جوه اللعبة (سلس + FPS المناسب + الظلال مقفولة)' });
+  steps.push({ id:'perf', txt:'فعّل وضع الألعاب / الأداء من إعدادات الموبايل', btn:'افتح إعدادات البطارية', act:'battery' });
+  steps.push({ id:'bg', txt:'اقفل كل التطبيقات اللي في الخلفية قبل اللعب' });
+  box.innerHTML = steps.map(function(st){
+    const isDone = st.auto || done.has(st.id);
+    return '<div class="krow" style="align-items:center"><div style="flex:1"><div class="k" style="color:'+(isDone?'var(--ok)':'var(--txt)')+'">'+(isDone?'✅ ':'')+st.txt+'</div></div>' +
+      (st.btn && !isDone ? '<button class="ghost" style="width:auto;padding:8px 14px;margin-top:0" onclick="fpsAct(\''+st.act+'\')">'+st.btn+'</button>' : '') +
+      (!st.auto ? '<button class="ghost" style="width:auto;padding:8px 14px;margin-top:0" onclick="fpsDone(\''+st.id+'\')">'+(isDone?'تراجع':'خلصتها')+'</button>' : '') +
+      '</div>';
+  }).join('');
+}
+function fpsAct(act){
+  try{
+    if(act==='display' && window.AndroidBridge && AndroidBridge.openDisplaySettings){ AndroidBridge.openDisplaySettings(); return; }
+    if(act==='battery' && window.AndroidBridge && AndroidBridge.openBatterySettings){ AndroidBridge.openBatterySettings(); return; }
+  }catch(e){}
+}
+async function fpsDone(id){
+  const s = new Set(fpsMode.steps || []);
+  if(s.has(id)){ s.delete(id); } else { s.add(id); }
+  fpsMode.steps = [...s];
+  await saveFpsMode();
+  renderFpsSteps();
+}
+async function toggleFpsMode(){
+  fpsMode.on = !fpsMode.on;
+  await saveFpsMode();
+  paintFpsMode();
+}
+async function saveFpsMode(){
+  await api('/api/fpsmode', { method:'POST', body: JSON.stringify({ on: fpsMode.on, steps: fpsMode.steps || [] }) });
+}
 function paintPrice(){
   const el = document.getElementById('priceLine');
   const base = parseFloat(payPrices[renewSel]);
@@ -383,6 +470,8 @@ async function boot(){
   const u = me.body.user;
   if(!u.active){ show('blockedView'); checkMine(); return; }
   document.getElementById('hello').textContent = 'أهلًا '+u.username;
+  fpsMode = me.body.fpsMode || { on: false, steps: [] };
+  paintFpsMode();
   const rf = me.body.referral || {};
   document.getElementById('myRefCode').textContent = rf.code || '';
   document.getElementById('refCountLine').textContent = rf.count ? 'عدد اللي دخلوا بكودك: ' + rf.count : '';

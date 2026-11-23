@@ -12,7 +12,7 @@ body{background:var(--bg);color:var(--txt);min-height:100vh}
 h1{font-size:22px;padding:14px 0}
 h1 b{color:var(--acc)}
 .card{background:var(--card);border:1px solid #232c47;border-radius:14px;padding:16px;margin-top:14px}
-input,select{padding:11px 12px;border-radius:10px;border:1px solid #2a3452;background:var(--card2);color:var(--txt);font-size:14px;margin:4px 2px}
+input,select,textarea{padding:11px 12px;border-radius:10px;border:1px solid #2a3452;background:var(--card2);color:var(--txt);font-size:14px;margin:4px 2px;font-family:inherit}
 button{padding:10px 16px;border:0;border-radius:10px;background:var(--acc);color:#1a1206;font-weight:700;cursor:pointer;margin:4px 2px}
 button.ghost{background:var(--card2);color:var(--txt);border:1px solid #2a3452}
 button.danger{background:#3a1520;color:var(--bad)}
@@ -186,6 +186,24 @@ th{color:var(--mut);font-weight:600}
     </div>
 
     <div class="card">
+      <h2 style="font-size:16px">ترتيب الأزرار المقترح (يظهر للعميل) 🎮</h2>
+      <div class="mut">صوابعين (Thumb):</div>
+      <textarea id="layThumb" rows="3" style="width:100%"></textarea>
+      <div class="mut">كلاو 4 صوابع:</div>
+      <textarea id="layClaw" rows="3" style="width:100%"></textarea>
+      <div class="row"><button onclick="saveLayouts()">حفظ ترتيب الأزرار</button></div>
+      <div class="err" id="layErr"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:16px">نصايح رفع الفريمات العامة 🚀 (كل سطر = نصيحة)</h2>
+      <textarea id="fpsTips" rows="7" style="width:100%"></textarea>
+      <div class="row"><button onclick="saveFpsTips()">حفظ النصايح</button><button class="ghost" onclick="resetFpsTips()">رجوع للافتراضي</button></div>
+      <div class="err" id="fpsErr"></div>
+      <div class="mut">لو الخانة فاضية بترجع النصايح الافتراضية. إعدادات الجرافيك جوه اللعبة وملاحظات كل فئة موبايل بتتحسب تلقائي من الكتالوج.</div>
+    </div>
+
+    <div class="card">
       <h2 style="font-size:16px">الإحالة والكوبونات 🎁</h2>
       <div class="row">
         <span class="mut">أيام هدية الإحالة:</span>
@@ -236,7 +254,7 @@ async function adminLogin(){
   sessionStorage.setItem('ff_admin', at);
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('panel').classList.remove('hidden');
-  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry();
+  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts(); loadFpsTips();
 }
 async function addUser(){
   document.getElementById('addErr').textContent='';
@@ -503,7 +521,29 @@ async function saveExpiry(){
   if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); }
   else { e.textContent='حصل خطأ أثناء الحفظ'; }
 }
-if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); }
+async function loadLayouts(){
+  const r = await api('/api/admin/layouts');
+  if(r.status!==200) return;
+  document.getElementById('layThumb').value = r.body.twoThumb||'';
+  document.getElementById('layClaw').value = r.body.claw||'';
+}
+async function saveLayouts(){
+  const r = await api('/api/admin/layouts',{method:'POST',body:JSON.stringify({twoThumb:document.getElementById('layThumb').value, claw:document.getElementById('layClaw').value})});
+  const e = document.getElementById('layErr');
+  if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); } else { e.textContent='حصل خطأ أثناء الحفظ'; }
+}
+async function loadFpsTips(){
+  const r = await api('/api/admin/fpstips');
+  if(r.status!==200) return;
+  document.getElementById('fpsTips').value = (r.body.lines||[]).join('\n');
+}
+async function saveFpsTips(){
+  const r = await api('/api/admin/fpstips',{method:'POST',body:JSON.stringify({text:document.getElementById('fpsTips').value})});
+  const e = document.getElementById('fpsErr');
+  if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); } else { e.textContent='حصل خطأ أثناء الحفظ'; }
+}
+async function resetFpsTips(){ document.getElementById('fpsTips').value=''; await saveFpsTips(); }
+if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts(); loadFpsTips(); }
 </script>
 </body>
 </html>

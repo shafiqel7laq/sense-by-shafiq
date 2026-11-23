@@ -44,6 +44,50 @@ function dpiNote(m, dpi) {
   return 'DPI ' + dpi + ' محسوب من شاشة موبايلك (' + m.scr[0] + ' بوصة، ~' + p + ' بكسل/بوصة) ومتوازن مع الحساسية عشان الحركة الكلية تفضل ثابتة.';
 }
 
+// جيروسكوب: متوازن مع حساسية السيت وفئة الموبايل (الأخف/الأرخص = أهدى)
+const GYRO_TIER = { 2: 130, 3: 145, 4: 160, 6: 175, 8: 190, 12: 195 };
+function gyroFor(m, sensGeneral) {
+  const tier = ramTier(m.ram || 4);
+  const base = GYRO_TIER[tier] || 160;
+  const g = Math.max(1, Math.min(200, Math.round(base * (SENS_ANCHOR / Math.max(120, sensGeneral || SENS_ANCHOR)) / 5) * 5));
+  return {
+    general: g,
+    redDot: Math.min(200, Math.round(g * 0.95 / 5) * 5),
+    scope2x: Math.min(200, Math.round(g * 0.9 / 5) * 5),
+    scope4x: Math.min(200, Math.round(g * 0.8 / 5) * 5),
+    sniper: Math.min(200, Math.round(g * 0.6 / 5) * 5)
+  };
+}
+
+// رفع الفريمات - طرق شرعية 100%: إعدادات اللعبة نفسها + إعدادات الموبايل (ممنوع GFX tools أو تعديل ملفات)
+const FPS_GENERAL_TIPS = [
+  'اقفل كل التطبيقات اللي في الخلفية قبل ما تلعب.',
+  'فعّل وضع الألعاب / الأداء من إعدادات الموبايل.',
+  'العب والبطارية فوق 20% ووضع توفير البطارية مقفول.',
+  'متلعبش والموبايل سخن أو بيشحن — السخونية بتقلل الفريمات.',
+  'سيب مساحة فاضية في التخزين (3-4 جيجا على الأقل).',
+  'نضف الشاشة وإيدك — اللمس النضيف استجابته أسرع.'
+];
+function fpsBoostFor(m) {
+  const tier = ramTier(m.ram || 4);
+  const hz = m.hz || 60;
+  const cls = (tier >= 8 || hz >= 120) ? 'قوي' : (tier >= 4 ? 'متوسط' : 'ضعيف');
+  const fpsLevel = hz >= 120 ? 'ألترا (لو متاح) وإلا عالي' : hz >= 90 ? 'عالي' : 'عادي';
+  const inGame = [
+    { k: 'الرسومات', v: 'سلس (Smooth)' },
+    { k: 'معدل FPS', v: fpsLevel, d: hz >= 90 ? 'شاشتك ' + hz + 'Hz — فعّل أعلى معدل من إعدادات شاشة الموبايل الأول' : 'موبايلك ' + hz + 'Hz — الثبات أهم من الرقم' },
+    { k: 'الظلال (Shadows)', v: 'مقفولة' },
+    { k: 'الضبط التلقائي للجرافيك', v: 'مقفول', d: 'لو سيبته شغال اللعبة بتلعب بالفريمات في نص الجيم' },
+    { k: 'جودة العرض العالية (HD)', v: 'مقفولة' }
+  ];
+  const tierNotes = cls === 'ضعيف'
+    ? ['موبايلك من الفئة الضعيفة: اقفل التنزيل التلقائي للموارد من إعدادات اللعبة.', 'امسح كاش اللعبة كل فترة من إعدادات الموبايل > التطبيقات > فري فاير > مسح الكاش (مش مسح البيانات).', 'قلل الأصوات والمؤثرات من إعدادات اللعبة.']
+    : cls === 'متوسط'
+    ? ['موبايلك من الفئة المتوسطة: لو حسيت بتهنيج وقت الزحمة، وطّي FPS لعادي مؤقتًا — ثبات الفريم أهم من الرقم العالي.']
+    : ['موبايلك قوي: فعّل أعلى معدل تحديث للشاشة من إعدادات الموبايل نفسها قبل اللعب.', 'شغّل وضع الأداء/الألعاب من إعدادات الموبايل لو موجود.'];
+  return { cls, inGame, deviceGeneral: FPS_GENERAL_TIPS, deviceTier: tierNotes };
+}
+
 function ramTier(ram) {
   if (ram <= 2) return 2;
   if (ram <= 3) return 3;
@@ -198,6 +242,8 @@ function build(m, matchType, query) {
     device: {
       name: m.name || (query + ' (حسب فئة الجهاز)'),
       dpi: dpi, dpiNote: dpiN, sens, fps, controls, weapons,
+      gyro: gyroFor(m, sens.general),
+      fpsBoost: fpsBoostFor(m),
       graphics: 'Smooth + High FPS',
       refresh: hz, ramGB: m.ram,
       tips: tips.join('\n'),
@@ -229,4 +275,4 @@ function match(query) {
 
 function list() { return MODELS.map(m => m.name); }
 
-export { match, list, MODELS, dpiFor, screenPpi, dpiNote };
+export { match, list, MODELS, dpiFor, screenPpi, dpiNote, gyroFor, fpsBoostFor };

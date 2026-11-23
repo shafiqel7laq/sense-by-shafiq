@@ -632,7 +632,7 @@ function aimNextTest(){
   aimMsg(t.name, t.hint);
   aimText(t.name, aimRun.cv.clientWidth/2, aimRun.cv.clientHeight/2 - 14, 22, '#ff7a1a');
   aimText('جاهز؟', aimRun.cv.clientWidth/2, aimRun.cv.clientHeight/2 + 18, 16, '#9aa3b8');
-  setTimeout(()=>{ if(aimRun && !aimRun.dead) t.run(function(score){ aimRun.scores[t.key]=Math.round(score); aimRun.step++; aimNextTest(); }); }, 1400);
+  setTimeout(()=>{ if(aimRun && !aimRun.dead) t.run(function(score){ aimRun.scores[t.key]=Math.max(0,Math.min(100,Math.round(score))); aimRun.step++; aimNextTest(); }); }, 1400);
 }
 // 1) رد الفعل: 10 جولات
 function aimTestReaction(done){
@@ -818,6 +818,7 @@ function aimTestFocus(done){
       aimClear();
       aimCircle(en.x,en.y,en.r,'#ff5252','#ffc4c4'); aimText('💀',en.x,en.y,16);
       aimCircle(fr.x,fr.y,fr.r,'#3d8bff','#c4dcff'); aimText('🙂',fr.x,fr.y,16);
+      aimText('دوس على الأحمر 🔴 بس — الأزرق 🔵 صاحبك!', W/2, H-14, 13, '#ffb020');
       timer = setTimeout(()=>{ if(!lock){ lock=true; round++; aimText('فاتت!', W/2, 30, 18, '#ff5252'); setTimeout(nextRound, 400); } }, 2500);
     }, 500+Math.random()*900);
   }
@@ -826,7 +827,7 @@ function aimTestFocus(done){
     const p = aimPos(e); lock = true;
     clearTimeout(timer);
     let sc = 0;
-    if(Math.hypot(p.x-en.x,p.y-en.y) <= en.r+12){ const ms = performance.now()-t0; sc = ms<=500?100:ms>=1500?0:Math.round(100-(ms-500)); }
+    if(Math.hypot(p.x-en.x,p.y-en.y) <= en.r+12){ const ms = performance.now()-t0; sc = ms<=500?100:ms>=1500?0:Math.round(100-(ms-500)/10); }
     total += sc; round++;
     aimText(sc>0?'+'+sc:'❌', p.x, p.y-26, 20, sc>0?'#3ddc84':'#ff5252');
     setTimeout(nextRound, 380);

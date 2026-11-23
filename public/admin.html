@@ -187,11 +187,9 @@ th{color:var(--mut);font-weight:600}
 
     <div class="card">
       <h2 style="font-size:16px">ترتيب الأزرار المقترح (يظهر للعميل) 🎮</h2>
-      <div class="mut">صوابعين (Thumb):</div>
-      <textarea id="layThumb" rows="3" style="width:100%"></textarea>
-      <div class="mut">كلاو 4 صوابع:</div>
-      <textarea id="layClaw" rows="3" style="width:100%"></textarea>
-      <div class="row"><button onclick="saveLayouts()">حفظ ترتيب الأزرار</button></div>
+      <div class="mut">اختار النمط وعدّل اسمه ووصفه وقيم الأزرار. أماكن الأزرار على الرسمة ثابتة من الكود.</div>
+      <div class="row" style="margin-top:6px"><select id="layPatSel" onchange="loadLayPat()" style="min-width:260px"></select><button class="ghost" onclick="loadLayouts2()">تحديث</button></div>
+      <div id="layPatForm"></div>
       <div class="err" id="layErr"></div>
     </div>
 
@@ -254,7 +252,7 @@ async function adminLogin(){
   sessionStorage.setItem('ff_admin', at);
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('panel').classList.remove('hidden');
-  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts(); loadFpsTips();
+  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts2(); loadFpsTips();
 }
 async function addUser(){
   document.getElementById('addErr').textContent='';
@@ -521,16 +519,41 @@ async function saveExpiry(){
   if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); }
   else { e.textContent='حصل خطأ أثناء الحفظ'; }
 }
-async function loadLayouts(){
-  const r = await api('/api/admin/layouts');
+let LAY2 = [];
+const LAY_BTNS = [['fire','إطلاق النار'],['jump','القفز'],['run','الركض'],['weapon','منطقة السلاح'],['swap','التبديل'],['bag','الحقيبة'],['med','الإسعافات'],['skill','المهارة'],['joy','عجلة الحركة']];
+async function loadLayouts2(){
+  const r = await api('/api/admin/layouts2');
   if(r.status!==200) return;
-  document.getElementById('layThumb').value = r.body.twoThumb||'';
-  document.getElementById('layClaw').value = r.body.claw||'';
+  LAY2 = r.body.tabs || [];
+  const sel = document.getElementById('layPatSel');
+  sel.innerHTML = LAY2.map(t=>t.patterns.map(p=>'<option value="'+p.id+'">'+t.fingers+' '+(t.fingers===2?'إصبعين':'أصابع')+' — '+p.name+'</option>').join('')).join('');
+  loadLayPat();
 }
-async function saveLayouts(){
-  const r = await api('/api/admin/layouts',{method:'POST',body:JSON.stringify({twoThumb:document.getElementById('layThumb').value, claw:document.getElementById('layClaw').value})});
+function escq(v){ return String(v||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function loadLayPat(){
+  const id = document.getElementById('layPatSel').value;
+  const p = LAY2.reduce((a,t)=>a.concat(t.patterns),[]).find(x=>x.id===id); if(!p) return;
+  document.getElementById('layPatForm').innerHTML =
+    '<div class="row" style="margin-top:8px"><input id="lpName" value="'+escq(p.name)+'" placeholder="اسم النمط"><input id="lpDesc" style="min-width:300px" value="'+escq(p.desc)+'" placeholder="وصف سطر واحد"></div>'+
+    '<label class="mut" style="display:block;margin-top:6px"><input type="checkbox" id="lpPrem" style="width:auto" '+(p.premium?'checked':'')+'> بريميوم 🔒 (قفل النمط)</label>'+
+    '<table style="width:100%;margin-top:8px;font-size:14px"><thead><tr><th style="text-align:right">الزر</th><th>الحجم %</th><th>الشفافية %</th></tr></thead><tbody>'+
+    LAY_BTNS.map(function(b){ const v=p.vals[b[0]];
+      return '<tr><td>'+b[1]+'</td><td><input type="number" id="lv_'+b[0]+'" value="'+v.s+'" style="width:80px"></td><td><input type="number" id="lo_'+b[0]+'" value="'+v.o+'" style="width:80px"></td></tr>'; }).join('')+
+    '</tbody></table>'+
+    '<div class="row" style="margin-top:8px"><button onclick="saveLayPat()">حفظ النمط</button><button class="ghost" onclick="resetLayPat()">رجوع للافتراضي</button></div>';
+}
+async function saveLayPat(){
+  const id = document.getElementById('layPatSel').value;
+  const vals = {};
+  LAY_BTNS.forEach(function(b){ vals[b[0]] = { s: parseFloat(document.getElementById('lv_'+b[0]).value)||0, o: parseFloat(document.getElementById('lo_'+b[0]).value)||0 }; });
+  const r = await api('/api/admin/layouts2',{method:'POST',body:JSON.stringify({patternId:id, patch:{name:document.getElementById('lpName').value.trim(), desc:document.getElementById('lpDesc').value.trim(), premium:document.getElementById('lpPrem').checked, vals:vals}})});
   const e = document.getElementById('layErr');
-  if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); } else { e.textContent='حصل خطأ أثناء الحفظ'; }
+  if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); loadLayouts2(); } else { e.textContent='حصل خطأ أثناء الحفظ'; }
+}
+async function resetLayPat(){
+  const id = document.getElementById('layPatSel').value;
+  await api('/api/admin/layouts2',{method:'POST',body:JSON.stringify({patternId:id, reset:true})});
+  loadLayouts2();
 }
 async function loadFpsTips(){
   const r = await api('/api/admin/fpstips');
@@ -543,7 +566,7 @@ async function saveFpsTips(){
   if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); } else { e.textContent='حصل خطأ أثناء الحفظ'; }
 }
 async function resetFpsTips(){ document.getElementById('fpsTips').value=''; await saveFpsTips(); }
-if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts(); loadFpsTips(); }
+if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); loadStats(); loadRefCfg(); loadCoupons(); loadExpiry(); loadLayouts2(); loadFpsTips(); }
 </script>
 </body>
 </html>

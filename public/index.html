@@ -146,8 +146,9 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
 
     <div class="card">
       <h2 style="font-size:15px;margin-bottom:8px">ترتيب الأزرار المقترح 🎮</h2>
-      <details style="margin-top:6px"><summary style="cursor:pointer;color:var(--acc2);font-size:14px">صوابعين (Thumb)</summary><div id="layThumb" style="font-size:14px;line-height:1.9;margin-top:6px"></div></details>
-      <details style="margin-top:6px"><summary style="cursor:pointer;color:var(--acc2);font-size:14px">كلاو 4 صوابع</summary><div id="layClaw" style="font-size:14px;line-height:1.9;margin-top:6px"></div></details>
+      <div id="layTabs" style="display:flex;gap:8px;overflow-x:auto;margin-top:8px;padding-bottom:4px"></div>
+      <div id="layGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px"></div>
+      <div id="layDetail"></div>
     </div>
 
     <div class="card">
@@ -259,9 +260,7 @@ function render(d){
   const dl = d.daily || {};
   if(dl.training){ document.getElementById('trainDate').textContent = dl.date ? '('+dl.date+')' : ''; document.getElementById('trainBody').textContent = dl.training.t + ' — ' + dl.training.d; }
   if(dl.tip){ document.getElementById('tipOfDay').textContent = '💡 نصيحة اليوم: ' + dl.tip; }
-  const ly = d.layouts || {};
-  document.getElementById('layThumb').textContent = ly.twoThumb || '';
-  document.getElementById('layClaw').textContent = ly.claw || '';
+  if (d.layoutsV2) { LAYT = d.layoutsV2; if (!LAYT.some(t=>t.fingers===layTab)) layTab = LAYT[0].fingers; paintLayTabs(); paintLayGrid(); }
   const extra = (d.sets || []).slice(1);
   const lbl = [['general','الحساسية العامة'],['redDot','ريد دوت'],['scope2x','سكوب 2x'],['scope4x','سكوب 4x'],['sniper','سنايبر'],['freeLook','النظرة الحرة']];
   const glbl = [['general','جايرو عام'],['redDot','ريد دوت'],['scope2x','سكوب 2x'],['scope4x','سكوب 4x'],['sniper','سنايبر']];
@@ -501,6 +500,47 @@ async function boot(){
   if(model){ lookup(model + (di.hz ? ' '+di.hz+'hz' : '')); }
 }
 boot();
+
+// ===== ترتيب الأزرار v2 =====
+let LAYT = null, layTab = 2;
+const LAY_SHORT = {fire:'نار',jump:'قفز',run:'ركض',weapon:'سلاح',swap:'تبديل',bag:'شنطة',med:'إسعاف',skill:'مهارة',joy:'حركة'};
+const LAY_NAMES = {fire:'زر إطلاق النار',jump:'زر القفز',run:'زر الركض السريع',weapon:'منطقة السلاح',swap:'زر التبديل السريع',bag:'زر الحقيبة',med:'زر الإسعافات',skill:'زر المهارة',joy:'عجلة الحركة'};
+function laySVG(pos, big) {
+  let s = '<svg viewBox="0 0 100 45" dir="ltr" style="width:100%;background:#10141f;border-radius:10px;display:block;border:1px solid #232c47" xmlns="http://www.w3.org/2000/svg">';
+  for (const k in pos) { const b = pos[k];
+    s += '<circle cx="'+b.x+'" cy="'+b.y+'" r="'+b.r+'" fill="rgba(255,122,26,0.14)" stroke="#ff7a1a" stroke-width="0.6"/>';
+    s += '<text x="'+b.x+'" y="'+(b.y+1)+'" font-size="'+(big?3.1:2.8)+'" fill="#eef1f8" text-anchor="middle">'+LAY_SHORT[k]+'</text>';
+  }
+  return s+'</svg>';
+}
+function paintLayTabs() {
+  document.getElementById('layTabs').innerHTML = LAYT.map(function(t){
+    const on = t.fingers===layTab;
+    return '<button class="ghost" style="width:auto;white-space:nowrap;flex:0 0 auto;'+(on?'border-color:var(--acc);color:var(--acc2);font-weight:800':'')+'" onclick="pickLayTab('+t.fingers+')">'+t.fingers+' '+(t.fingers===2?'إصبعين':'أصابع')+'</button>';
+  }).join('');
+}
+function paintLayGrid() {
+  const t = LAYT.find(x=>x.fingers===layTab); if(!t) return;
+  document.getElementById('layGrid').innerHTML = t.patterns.map(function(p){
+    return '<div style="background:var(--card2);border:1px solid #232c47;border-radius:12px;padding:10px;cursor:pointer" onclick="pickLay(\''+p.id+'\')">'+
+      laySVG(p.pos)+
+      '<div style="font-size:13px;font-weight:800;margin-top:6px">'+p.name+(p.premium?' 🔒':'')+'</div>'+
+      '<div class="mut" style="font-size:11px;line-height:1.6">'+p.desc+'</div></div>';
+  }).join('');
+  document.getElementById('layDetail').innerHTML = '';
+}
+function pickLayTab(f) { layTab = f; paintLayTabs(); paintLayGrid(); }
+function pickLay(id) {
+  const t = LAYT.find(x=>x.fingers===layTab); const p = t.patterns.find(x=>x.id===id); if(!p) return;
+  if (p.premium) { document.getElementById('layDetail').innerHTML = '<div class="mut" style="margin-top:12px;font-size:14px">🔒 النمط ده بريميوم — قريب يا وحش</div>'; return; }
+  document.getElementById('layDetail').innerHTML =
+    '<div style="margin-top:14px">'+laySVG(p.pos,true)+'</div>'+
+    '<div style="font-weight:800;margin-top:10px;font-size:15px">'+p.name+'</div>'+
+    '<div class="mut" style="font-size:13px;margin-top:2px">'+p.desc+'</div>'+
+    '<div style="margin-top:8px;font-size:13px">'+Object.keys(LAY_NAMES).map(function(k){ const v=p.vals[k];
+      return '<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #232c47"><div>'+LAY_NAMES[k]+'</div><div style="white-space:nowrap"><span style="color:var(--acc2);font-weight:700">'+v.s+'%</span> <span class="mut">• شفافية '+v.o+'%</span></div></div>';
+    }).join('')+'</div>';
+}
 </script>
 </body>
 </html>

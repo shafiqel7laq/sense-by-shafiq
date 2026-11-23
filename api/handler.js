@@ -644,7 +644,28 @@ export default async (req) => {
         await set("meta/layouts", v);
         return json(v);
       }
-      if (p === "/api/admin/fpstips" && req.method === "GET") {
+      if (p === "/api/admin/layouts2" && req.method === "GET") return json({ tabs: await layoutsV2() });
+  if (p === "/api/admin/layouts2" && req.method === "POST") {
+    const b = await req.json();
+    const id = String(b.patternId || "");
+    if (!LAYOUTS_V2.some(t => t.patterns.some(x => x.id === id))) return json({ error: "not_found" }, 404);
+    const m = (await get("meta/layouts2")) || {};
+    m.overrides = m.overrides || {};
+    if (b.reset) { delete m.overrides[id]; }
+    else {
+      const patch = b.patch || {};
+      const vals = {};
+      for (const k of ["fire","jump","run","weapon","swap","bag","med","skill","joy"]) {
+        const v = patch.vals && patch.vals[k];
+        if (v) vals[k] = { s: Math.max(1, Math.min(200, Math.round(+v.s || 0))), o: Math.max(0, Math.min(100, Math.round(+v.o || 0))) };
+      }
+      m.overrides[id] = { name: String(patch.name || "").slice(0, 40), desc: String(patch.desc || "").slice(0, 140), premium: patch.premium === true, vals };
+    }
+    await set("meta/layouts2", m);
+    return json({ tabs: await layoutsV2() });
+  }
+
+  if (p === "/api/admin/fpstips" && req.method === "GET") {
         const m = await get("meta/fpstips");
         return json({ lines: (m && m.lines) || [] });
       }

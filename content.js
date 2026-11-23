@@ -61,4 +61,51 @@ function dailyFor(dayOfYear) {
   return { training: TRAININGS[dayOfYear % TRAININGS.length], tip: TIPS[dayOfYear % TIPS.length] };
 }
 
-export { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor };
+export { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor, LAYOUTS_V2, LAY_BTN_NAMES };
+
+// ===== ترتيب الأزرار v2: تابات بعدد الصوابع + أنماط + قيم أزرار (رسمنا SVG خاص - ممنوع صور المنافسين) =====
+// pos: إحداثيات على viewBox 100x45 (شاشة بالعرض) - x,y مركز الزر، r نصف القطر
+const LAY_BASE = {
+  2: { joy:{x:10,y:32,r:6}, fire:{x:84,y:26,r:7}, jump:{x:93,y:14,r:4.5}, run:{x:78,y:10,r:4}, weapon:{x:60,y:8,r:4}, swap:{x:69,y:8,r:3.5}, bag:{x:24,y:8,r:3.5}, med:{x:33,y:8,r:3.5}, skill:{x:50,y:8,r:3.5} },
+  3: { fire:{x:10,y:10,r:6}, joy:{x:10,y:32,r:6}, jump:{x:90,y:30,r:5}, run:{x:82,y:12,r:4}, weapon:{x:62,y:8,r:4}, swap:{x:71,y:8,r:3.5}, bag:{x:24,y:8,r:3.5}, med:{x:33,y:8,r:3.5}, skill:{x:80,y:28,r:4} },
+  4: { fire:{x:10,y:9,r:5.5}, jump:{x:90,y:9,r:5}, joy:{x:10,y:32,r:6}, run:{x:82,y:26,r:4}, weapon:{x:62,y:8,r:4}, swap:{x:71,y:8,r:3.5}, bag:{x:24,y:8,r:3.5}, med:{x:33,y:8,r:3.5}, skill:{x:80,y:33,r:4} },
+  5: { fire:{x:9,y:9,r:5}, jump:{x:91,y:9,r:5}, run:{x:91,y:20,r:4.5}, joy:{x:10,y:32,r:6}, weapon:{x:60,y:8,r:4}, swap:{x:69,y:8,r:3.5}, bag:{x:24,y:8,r:3.5}, med:{x:33,y:8,r:3.5}, skill:{x:80,y:34,r:4} }
+};
+const LAY_VALS = {
+  2: { fire:[65,100], jump:[75,85], run:[75,100], weapon:[72,100], swap:[110,100], bag:[50,80], med:[50,80], skill:[70,100], joy:[1,70] },
+  3: { fire:[70,100], jump:[78,85], run:[75,100], weapon:[72,100], swap:[110,100], bag:[50,80], med:[50,80], skill:[70,100], joy:[1,70] },
+  4: { fire:[60,100], jump:[75,85], run:[75,100], weapon:[72,100], swap:[115,100], bag:[50,80], med:[50,80], skill:[72,100], joy:[1,70] },
+  5: { fire:[58,100], jump:[72,85], run:[72,100], weapon:[74,100], swap:[115,100], bag:[50,80], med:[50,80], skill:[74,100], joy:[1,70] }
+};
+function layPattern(f, id, name, desc, mod) {
+  const pos = JSON.parse(JSON.stringify(LAY_BASE[f]));
+  const vals = {};
+  for (const k in LAY_VALS[f]) vals[k] = { s: LAY_VALS[f][k][0], o: LAY_VALS[f][k][1] };
+  if (mod) {
+    for (const k in (mod.pos || {})) pos[k] = { ...pos[k], ...mod.pos[k] };
+    for (const k in (mod.vals || {})) vals[k] = { ...vals[k], ...mod.vals[k] };
+  }
+  return { id: 'f' + f + '-' + id, fingers: f, name, desc, premium: false, pos, vals };
+}
+const LAYOUTS_V2 = [
+  { fingers: 2, patterns: [
+    layPattern(2, 'speed', 'سرعة الاستجابة', 'زرار نار أكبر وقريب — أول طلقة أسرع', { pos: { fire: { r: 8.5 }, jump: { r: 5 } }, vals: { fire: { s: 75 }, jump: { s: 80 }, swap: { s: 120 } } }),
+    layPattern(2, 'balanced', 'توازن مثالي', 'توزيع مريح للعب الطويل من غير لخبطة', null),
+    layPattern(2, 'smooth', 'تحكم سلس', 'أزرار أصغر ومتباعدة — للي بيحب الهدوء', { pos: { fire: { r: 6 } }, vals: { fire: { s: 55, o: 90 }, jump: { s: 70 }, run: { s: 70 } } })
+  ]},
+  { fingers: 3, patterns: [
+    layPattern(3, 'speed', 'سرعة الاستجابة', 'النار بقت للسبابة — سحبتك هتفرق من أول جيم', { pos: { fire: { r: 7 } }, vals: { fire: { s: 78 }, swap: { s: 120 } } }),
+    layPattern(3, 'balanced', 'توازن مثالي', 'أحسن توزيع للـ3 صوابع من غير تعب', null),
+    layPattern(3, 'pro', 'احترافي', 'أقصى استغلال لـ3 صوابع — قريب من الكلاو', { pos: { skill: { x: 76, y: 24 } }, vals: { skill: { s: 78 }, weapon: { s: 75 } } })
+  ]},
+  { fingers: 4, patterns: [
+    layPattern(4, 'speed', 'سرعة الاستجابة', 'كلاو سريع — النار والقفز تحت السبابتين', { vals: { fire: { s: 68 }, jump: { s: 80 } } }),
+    layPattern(4, 'pro', 'احترافي', 'الكلاو الكلاسيكي بتاع المحترفين', { vals: { fire: { s: 65 }, skill: { s: 78 }, weapon: { s: 75 } } }),
+    layPattern(4, 'smooth', 'تحكم سلس', 'كلاو مريح بأزرار أهدى للعب الطويل', { pos: { fire: { r: 5 } }, vals: { fire: { s: 55, o: 90 } } })
+  ]},
+  { fingers: 5, patterns: [
+    layPattern(5, 'pro', 'احترافي', '5 صوابع كاملة — كل حاجة تحت إيدك', null),
+    layPattern(5, 'smooth', 'تحكم سلس', 'توزيع مريح لـ5 صوابع للسيشنات الطويلة', { vals: { fire: { s: 52, o: 90 } } })
+  ]}
+];
+const LAY_BTN_NAMES = { fire: 'زر إطلاق النار', jump: 'زر القفز', run: 'زر الركض السريع', weapon: 'منطقة السلاح', swap: 'زر التبديل السريع', bag: 'زر الحقيبة', med: 'زر الإسعافات', skill: 'زر المهارة', joy: 'عجلة الحركة' };

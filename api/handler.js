@@ -133,7 +133,85 @@ export default async (req) => {
     if (p === "/api/me" && req.method === "GET") {
       const s = await getSession(req);
       if (!s) return json({ error: "unauthorized" }, 401);
-      return json({ user: publicUser(s.user) });
+      const st = (await get("streak/" + s.user.id)) || { count: 0, best: 0 };
+      const cfg = (await get("meta/streak")) || {};
+      return json({ user: publicUser(s.user), nick: s.user.nick || "", streak: { count: st.count || 0, best: st.best || 0, giftDays: cfg.giftDays || 1 } });
+    }
+    if (p === "/api/streak/ping" && req.method === "POST") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const cfg = (await get("meta/streak")) || {};
+      const giftDays = Number.isFinite(+cfg.giftDays) && +cfg.giftDays > 0 ? Math.min(30, +cfg.giftDays) : 1;
+      const today = new Date().toISOString().slice(0, 10);
+      const yest = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      let st = (await get("streak/" + s.user.id)) || { count: 0, best: 0, lastDay: "", gifts: 0 };
+      let gifted = 0;
+      if (st.lastDay !== today) {
+        st.count = (st.lastDay === yest) ? st.count + 1 : 1;
+        st.lastDay = today;
+        st.best = Math.max(st.best || 0, st.count);
+        if (st.count % 7 === 0 && (st.gifts || 0) < st.count / 7) {
+          st.gifts = (st.gifts || 0) + 1;
+          const u = await get("users/" + s.user.id);
+          if (u) { u.expiresAt += giftDays * 86400000; await putUser(u); gifted = giftDays; }
+        }
+        await set("streak/" + s.user.id, st);
+      }
+      return json({ streak: { count: st.count, best: st.best, giftDays }, gifted });
+    }
+    if (p === "/api/nickname" && req.method === "POST") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const { nick } = await req.json();
+      const u = await get("users/" + s.user.id);
+      if (!u) return json({ error: "not_found" }, 404);
+      u.nick = String(nick || "").trim().slice(0, 24);
+      await putUser(u);
+      return json({ nick: u.nick });
+    }
+    if (p === "/api/rate" && req.method === "POST") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const b = await req.json();
+      const key = String(b.key || "").slice(0, 80), setId = String(b.setId || "").slice(0, 40);
+      if (!key || !setId) return json({ error: "bad_request" }, 400);
+      const stars = parseInt(b.stars, 10);
+      const worked = b.worked === true;
+      if (!Number.isFinite(stars) || stars < 1 || stars > 5) return json({ error: "bad_stars" }, 400);
+      const rk = "rating/" + s.user.id + "/" + key + "/" + setId;
+      const prev = await get(rk);
+      const sk = "ratesum/" + key + "/" + setId;
+      let sum = (await get(sk)) || { n: 0, sum: 0, worked: 0 };
+      if (prev) { sum.n--; sum.sum -= prev.stars; if (prev.worked) sum.worked--; }
+      sum.n++; sum.sum += stars; if (worked) sum.worked++;
+      await set(rk, { stars, worked, ts: Date.now() });
+      await set(sk, sum);
+      return json({ ok: true, mine: { stars, worked } });
+    }
+    if (p === "/api/rate/mine" && req.method === "GET") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const key = url.searchParams.get("key") || "";
+      const keys = await listPrefix("rating/" + s.user.id + "/" + key + "/");
+      const out = {};
+      for (const k of keys) { const r = await get(k); if (r) out[k.split("/").pop()] = r; }
+      return json({ ratings: out });
+    }
+    if (p === "/api/beast" && req.method === "GET") {
+      const s = await getSession(req);
+      if (!s) return json({ error: "unauthorized" }, 401);
+      const b = await get("meta/beast");
+      if (b && b.manual) return json({ beast: { display: b.display || b.username, manual: true }, me: s.user.id === b.userId });
+      const keys = await listPrefix("streak/");
+      let best = null;
+      for (const k of keys) {
+        const st = await get(k);
+        if (!st || !st.count) continue;
+        if (!best || st.count > best.count) best = { count: st.count, userId: k.slice(7) };
+      }
+      if (!best) return json({ beast: null, me: false });
+      const u = await get("users/" + best.userId);
+      return json({ beast: { display: (u && (u.nick || u.username)) || "وحش مجهول", streak: best.count }, me: best.userId === s.user.id });
     }
     if (p === "/api/logout" && req.method === "POST") {
       const s = await getSession(req);
@@ -284,6 +362,43 @@ export default async (req) => {
         for (const k of DKEYS) { if (b.prices && b.prices[k] != null) v.prices[k] = String(b.prices[k]).slice(0, 20); }
         await set("meta/payment", v);
         return json({ payment: v });
+      }
+      if (p === "/api/admin/ratings" && req.method === "GET") {
+        const keys = await listPrefix("ratesum/");
+        const out = [];
+        for (const k of keys) {
+          const a = await get(k);
+          if (!a || !a.n) continue;
+          const parts = k.split("/");
+          out.push({ key: parts[1], setId: parts[2], avg: Math.round((a.sum / a.n) * 10) / 10, n: a.n, worked: a.worked });
+        }
+        return json({ ratings: out });
+      }
+      if (p === "/api/admin/streakcfg" && req.method === "GET") {
+        return json({ giftDays: ((await get("meta/streak")) || {}).giftDays || 1 });
+      }
+      if (p === "/api/admin/streakcfg" && req.method === "POST") {
+        const b = await req.json();
+        const g = parseInt(b.giftDays, 10);
+        if (!Number.isFinite(g) || g < 1 || g > 30) return json({ error: "bad_value" }, 400);
+        await set("meta/streak", { giftDays: g });
+        return json({ giftDays: g });
+      }
+      if (p === "/api/admin/beast" && req.method === "GET") {
+        return json({ beast: (await get("meta/beast")) || null });
+      }
+      if (p === "/api/admin/beast" && req.method === "POST") {
+        const b = await req.json();
+        if (!b.userId) return json({ error: "bad_request" }, 400);
+        const u = await get("users/" + b.userId);
+        if (!u) return json({ error: "not_found" }, 404);
+        const v = { manual: true, userId: u.id, username: u.username, display: u.nick || u.username, setAt: Date.now() };
+        await set("meta/beast", v);
+        return json({ beast: v });
+      }
+      if (p === "/api/admin/beast/clear" && req.method === "POST") {
+        await del("meta/beast");
+        return json({ ok: true });
       }
       if (p === "/api/admin/modelslist" && req.method === "GET") {
         return json({ models: listModels() });

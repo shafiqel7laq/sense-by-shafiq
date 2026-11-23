@@ -140,6 +140,33 @@ th{color:var(--mut);font-weight:600}
     </div>
 
     <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="font-size:16px">تقييمات السيتات</h2>
+        <button class="ghost" onclick="loadRatings()">تحديث</button>
+      </div>
+      <div id="ratingsBox" class="mut">...</div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:16px">الستريك ووحش الأسبوع</h2>
+      <div class="row">
+        <span class="mut">هدية كل 7 أيام ورا بعض:</span>
+        <input id="giftDays" type="number" min="1" max="30" style="width:70px"> <span class="mut">يوم</span>
+        <button onclick="saveStreakCfg()">حفظ</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span class="mut">وحش الأسبوع:</span>
+        <b id="beastCur">تلقائي (أعلى ستريك)</b>
+      </div>
+      <div class="row">
+        <select id="beastUser" style="min-width:200px"></select>
+        <button onclick="setBeast()">تعيين يدوي</button>
+        <button class="ghost" onclick="clearBeast()">رجوع للتلقائي</button>
+      </div>
+      <div class="err" id="retErr"></div>
+    </div>
+
+    <div class="card">
       <h2 style="font-size:16px">نص إشعار التحديث اليومي</h2>
       <div class="row"><input id="ntitle" placeholder="عنوان الإشعار" style="min-width:280px"></div>
       <div class="row"><input id="ntext" placeholder="نص الإشعار" style="min-width:280px"></div>
@@ -167,7 +194,7 @@ async function adminLogin(){
   sessionStorage.setItem('ff_admin', at);
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('panel').classList.remove('hidden');
-  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment();
+  loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg();
 }
 async function addUser(){
   document.getElementById('addErr').textContent='';
@@ -275,6 +302,49 @@ async function savePayment(){
   if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); }
   else { e.textContent='حصل خطأ أثناء الحفظ'; }
 }
+async function loadRatings(){
+  const r = await api('/api/admin/ratings');
+  if(r.status!==200) return;
+  const byModel = {};
+  (r.body.ratings||[]).forEach(function(x){ (byModel[x.key]=byModel[x.key]||[]).push(x); });
+  const names = {base:'السيت الأساسي'};
+  curSets.forEach(function(st){ names[st.id]=st.name; });
+  const keys = Object.keys(byModel);
+  document.getElementById('ratingsBox').innerHTML = keys.length ? keys.map(function(k){
+    const rows = byModel[k].sort((a,b)=>b.avg-a.avg).map(function(x){
+      return '<div class="row" style="border-bottom:1px solid #232c47;padding:6px 0"><b style="min-width:130px">'+(names[x.setId]||x.setId)+'</b>'+
+        '<span style="color:var(--acc)">'+'★'.repeat(Math.round(x.avg))+'</span> <span class="mut">'+x.avg+' ('+x.n+' تقييم)</span>'+
+        '<span class="badge on">ظبط معايا: '+x.worked+'</span></div>';
+    }).join('');
+    return '<div style="margin-top:10px"><b>'+k+'</b>'+rows+'</div>';
+  }).join('') : 'مفيش تقييمات لسه.';
+}
+async function loadStreakCfg(){
+  const r = await api('/api/admin/streakcfg');
+  if(r.status===200) document.getElementById('giftDays').value = r.body.giftDays||1;
+}
+async function saveStreakCfg(){
+  const r = await api('/api/admin/streakcfg',{method:'POST',body:JSON.stringify({giftDays:document.getElementById('giftDays').value})});
+  const e = document.getElementById('retErr');
+  if(r.status===200){ e.style.color='var(--ok)'; e.textContent='اتحفظ ✓'; setTimeout(()=>{e.style.color='';e.textContent='';},2000); }
+  else e.textContent = 'رقم من 1 لـ 30';
+}
+async function loadBeastAdmin(users){
+  const sel = document.getElementById('beastUser');
+  sel.innerHTML = (users||[]).map(u=>'<option value="'+u.id+'">'+u.username+'</option>').join('');
+  const r = await api('/api/admin/beast');
+  document.getElementById('beastCur').textContent = (r.status===200 && r.body.beast && r.body.beast.manual) ? ('يدوي: '+r.body.beast.display) : 'تلقائي (أعلى ستريك)';
+}
+async function setBeast(){
+  const id = document.getElementById('beastUser').value;
+  if(!id) return;
+  await api('/api/admin/beast',{method:'POST',body:JSON.stringify({userId:id})});
+  loadUsers();
+}
+async function clearBeast(){
+  await api('/api/admin/beast/clear',{method:'POST',body:'{}'});
+  loadUsers();
+}
 async function loadNotif(){
   const r = await api('/api/admin/notiftext');
   if(r.status!==200) return;
@@ -297,6 +367,7 @@ async function loadUsers(){
     '<button class="danger" onclick="act(\''+u.id+'\',\'DELETE\')">مسح</button></td></tr>';
   }).join('');
   document.getElementById('rows').innerHTML = rows || '<tr><td colspan="6" class="mut">مفيش زبائن لسه</td></tr>';
+  loadBeastAdmin(r.body.users);
 }
 async function exp(){
   const r = await api('/api/admin/export');
@@ -315,7 +386,7 @@ async function imp(inp){
   inp.value='';
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); }
+if(at){ document.getElementById('loginCard').classList.add('hidden'); document.getElementById('panel').classList.remove('hidden'); loadUsers(); loadModels(); loadNotif(); loadRenewals(); loadPayment(); loadRatings(); loadStreakCfg(); }
 </script>
 </body>
 </html>

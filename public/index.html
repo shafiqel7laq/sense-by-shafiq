@@ -119,7 +119,7 @@ a.link{color:var(--acc);font-size:13px;cursor:pointer}
 
     <div class="card" id="wheelCard" style="text-align:center">
       <h2 style="font-size:15px">عجلة الحظ 🎡</h2>
-      <div class="mut" style="font-size:13px;margin-top:4px">لفة مجانية كل يوم — جوايز: اشتراكات هدية، 100 جوهرة 💎، ودروب 1$ 💵</div>
+      <div class="mut" style="font-size:13px;margin-top:4px">بتتفتح في آخر يوم من اشتراكك — لفة واحدة تجرب حظك: اشتراكات هدية، 100 جوهرة 💎، أو دروب 1$ 💵</div>
       <div style="position:relative;width:min(300px,84vw);margin:16px auto 6px">
         <div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:20px solid var(--acc);z-index:2;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5))"></div>
         <canvas id="wheelCv" style="width:100%;display:block"></canvas>
@@ -980,8 +980,8 @@ initNav();
 
 // ===== عجلة الحظ =====
 const WHEEL_SEGS = [
-  {p:'d3', t:'3 أيام 🎁'}, {p:'gems', t:'💎 100'}, {p:'w1', t:'أسبوع 🎁'}, {p:'d3', t:'3 أيام 🎁'},
-  {p:'drop', t:'1$ 💵'}, {p:'d3', t:'3 أيام 🎁'}, {p:'gems', t:'💎 100'}, {p:'w1', t:'أسبوع 🎁'}
+  {p:'d3', t:'3 أيام 🎁'}, {p:'gems', t:'💎 100'}, {p:'none', t:'🍀'}, {p:'w1', t:'أسبوع 🎁'},
+  {p:'drop', t:'1$ 💵'}, {p:'d3', t:'3 أيام 🎁'}, {p:'none', t:'🍀'}, {p:'w1', t:'أسبوع 🎁'}
 ];
 let wheelAngle = 0, wheelSpinning = false, wheelState = null;
 function drawWheel(){
@@ -1018,17 +1018,24 @@ async function loadWheel(){
   if(r.status!==200) return;
   wheelState = r.body;
   const btn = document.getElementById('wheelBtn'), msg = document.getElementById('wheelMsg'), note = document.getElementById('wheelNote');
-  if(!r.body.active){ btn.disabled = true; btn.textContent = 'العجلة للمشتركين الفعالين 🔒'; msg.textContent=''; note.textContent = 'جدد اشتراكك عشان تلف العجلة كل يوم 🎡'; return; }
-  if(!r.body.canSpin){
-    btn.disabled = true; btn.textContent = 'لفيت النهارده ✅';
-    msg.innerHTML = 'جايزتك النهارده: <span style="color:var(--acc2)">'+(r.body.todayPrize?r.body.todayPrize.label:'')+'</span>';
-    note.textContent = 'ارجع بكرة للفة جديدة 🍀';
+  if(!r.body.active){ btn.disabled = true; btn.textContent = 'العجلة للمشتركين 🔒'; msg.textContent=''; note.textContent = 'جدد اشتراكك عشان تجرّب حظك في آخر يوم 🎡'; return; }
+  if(!r.body.lastDay){
+    btn.disabled = true; btn.textContent = 'لسه بدري ⏳';
+    msg.textContent = '';
+    note.textContent = 'العجلة بتتفتح في آخر يوم من اشتراكك — فاضل '+r.body.daysLeft+' يوم 🎡';
     return;
   }
-  btn.disabled = false; btn.textContent = 'لف العجلة 🎰'; msg.textContent=''; note.textContent='';
+  if(!r.body.canSpin){
+    btn.disabled = true; btn.textContent = 'لفيت ✅';
+    msg.innerHTML = 'نتيجة لفّتك: <span style="color:var(--acc2)">'+(r.body.spunPrize?r.body.spunPrize.label:'')+'</span>';
+    note.innerHTML = 'عجلة جديدة مع اشتراكك الجاي 🍀';
+    return;
+  }
+  btn.disabled = false; btn.textContent = 'لف العجلة 🎰 — آخر يوم!'; msg.textContent=''; note.textContent='اشتراكك بيخلص النهارده — جرّب حظك قبل ما يخلص 🍀';
 }
 function wheelResultText(pr){
   if(pr.days) return { big: pr.label, small: 'اتضافت لاشتراكك تلقائيًا 🎉 عيش يا وحش!' };
+  if(pr.id==='none') return { big: 'حظ أوفر 🍀', small: 'مكسبتش المرة دي — جدد اشتراكك وجرّب حظك تاني آخر يوم!' };
   return { big: pr.label, small: 'مبروك يا وحش! 🎉 سجّلناها — شفيق هيتواصل معاك يسلّمك جايزتك قريب' };
 }
 async function spinWheel(){
@@ -1037,8 +1044,12 @@ async function spinWheel(){
   const btn = document.getElementById('wheelBtn'), msg = document.getElementById('wheelMsg');
   btn.disabled = true; msg.textContent = 'بنلف... 🎰';
   const r = await api('/api/wheel/spin',{method:'POST'});
-  if(r.status===409){ msg.innerHTML = 'لفيت النهارده! جايزتك: <span style="color:var(--acc2)">'+(r.body.prize?r.body.prize.label:'')+'</span>'; btn.textContent='لفيت النهارده ✅'; wheelSpinning=false; return; }
-  if(r.status===403){ msg.textContent = 'العجلة للمشتركين الفعالين — جدد اشتراكك الأول 🔒'; wheelSpinning=false; return; }
+  if(r.status===409){ msg.innerHTML = 'لفيت خلاص! نتيجتك: <span style="color:var(--acc2)">'+(r.body.prize?r.body.prize.label:'')+'</span>'; btn.textContent='لفيت ✅'; wheelSpinning=false; return; }
+  if(r.status===403){
+    if(r.body && r.body.error==='not_last_day'){ msg.textContent = 'لسه بدري — العجلة بتتفتح آخر يوم من اشتراكك (فاضل '+r.body.daysLeft+' يوم) ⏳'; }
+    else { msg.textContent = 'العجلة للمشتركين الفعالين — جدد اشتراكك الأول 🔒'; }
+    btn.disabled = false; wheelSpinning=false; return;
+  }
   if(r.status!==200){ msg.textContent = 'حصل خطأ — جرب تاني'; btn.disabled = false; wheelSpinning=false; return; }
   const pr = r.body.prize;
   const idxs = WHEEL_SEGS.map((sg,i)=>sg.p===pr.id?i:-1).filter(i=>i>=0);
@@ -1059,10 +1070,9 @@ async function spinWheel(){
     drawWheel();
     const rt = wheelResultText(pr);
     msg.innerHTML = '<span style="font-size:19px;color:var(--acc)">'+rt.big+'</span><br><span style="font-size:13px;font-weight:400" class="mut">'+rt.small+'</span>';
-    document.getElementById('wheelNote').textContent = 'ارجع بكرة للفة جديدة 🍀';
-    btn.textContent = 'لفيت النهارده ✅';
+    document.getElementById('wheelNote').innerHTML = (pr.days ? 'اشتراكك بقى فيه '+r.body.daysLeft+' يوم ✅ ' : '') + '<button class="ghost" style="width:auto;padding:6px 14px;margin-top:6px" onclick="openRenew()">جدد اشتراكك 🔄</button>';
+    btn.textContent = 'لفيت ✅';
     wheelSpinning = false;
-    if(pr.days) boot();
   }
   requestAnimationFrame(frame);
 }

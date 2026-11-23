@@ -14,10 +14,11 @@ function cairoToday() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(new Date());
 }
 const WHEEL_PRIZES = [
-  { id: "d3", w: 45, label: "اشتراك هدية 3 أيام 🎁", days: 3 },
-  { id: "w1", w: 30, label: "اشتراك هدية أسبوع 🎁", days: 7 },
-  { id: "gems", w: 18, label: "100 جوهرة 💎" },
-  { id: "drop", w: 7, label: "دروب 1$ 💵" }
+  { id: "d3", w: 33, label: "اشتراك هدية 3 أيام 🎁", days: 3 },
+  { id: "w1", w: 22, label: "اشتراك هدية أسبوع 🎁", days: 7 },
+  { id: "none", w: 25, label: "حظ أوفر 🍀" },
+  { id: "gems", w: 14, label: "100 جوهرة 💎" },
+  { id: "drop", w: 6, label: "دروب 1$ 💵" }
 ];
 function wheelRoll() {
   let r = Math.random() * 100;
@@ -278,27 +279,28 @@ export default async (req) => {
       if (!s) return json({ error: "unauthorized" }, 401);
       const pu = publicUser(s.user);
       const w = (await get("wheel/" + s.user.id)) || {};
-      const today = cairoToday();
-      return json({ active: pu.active, canSpin: pu.active && w.last !== today, todayPrize: w.last === today ? w.lastPrize : null });
+      const lastDay = pu.active && pu.daysLeft <= 1;
+      const spunThisPeriod = !!(w.periodEnd && w.periodEnd === s.user.expiresAt);
+      return json({ active: pu.active, lastDay, daysLeft: pu.daysLeft, canSpin: lastDay && !spunThisPeriod, spunPrize: spunThisPeriod ? w.lastPrize : null });
     }
     if (p === "/api/wheel/spin" && req.method === "POST") {
       const s = await getSession(req);
       if (!s) return json({ error: "unauthorized" }, 401);
       const pu = publicUser(s.user);
       if (!pu.active) return json({ error: "not_active" }, 403);
-      const today = cairoToday();
+      if (pu.daysLeft > 1) return json({ error: "not_last_day", daysLeft: pu.daysLeft }, 403);
       const w = (await get("wheel/" + s.user.id)) || {};
-      if (w.last === today) return json({ error: "already_spun", prize: w.lastPrize }, 409);
+      if (w.periodEnd && w.periodEnd === s.user.expiresAt) return json({ error: "already_spun", prize: w.lastPrize }, 409);
       const prize = wheelRoll();
       if (prize.days) {
         s.user.expiresAt = Math.max(Date.now(), s.user.expiresAt || 0) + prize.days * 86400000;
         await putUser(s.user);
-      } else {
+      } else if (prize.id !== "none") {
         const list = (await get("wheelpending")) || [];
         list.push({ id: rid(), uid: s.user.id, username: s.user.username, prize: prize.id, label: prize.label, ts: Date.now(), done: false });
         await set("wheelpending", list.slice(-500));
       }
-      await set("wheel/" + s.user.id, { last: today, lastPrize: { id: prize.id, label: prize.label, days: prize.days || 0 } });
+      await set("wheel/" + s.user.id, { periodEnd: s.user.expiresAt, lastPrize: { id: prize.id, label: prize.label, days: prize.days || 0 }, ts: Date.now() });
       return json({ prize: { id: prize.id, label: prize.label, days: prize.days || 0 }, daysLeft: publicUser(s.user).daysLeft });
     }
     if (p === "/api/fpsmode" && req.method === "POST") {

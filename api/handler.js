@@ -228,13 +228,13 @@ export default async (req) => {
       return json({ user: publicUser(s.user), nick: s.user.nick || "", streak: { count: st.count || 0, best: st.best || 0, giftDays: cfg.giftDays || 1 },
         referral: { code: refCode, count: s.user.refCount || 0, used: !!s.user.referredBy },
         expNotif: await expiryMsg(), fpsMode: s.user.fpsMode || null,
-        aimBest: (((await get("aim/" + s.user.id)) || { results: [] }).results || []).reduce((a, r) => Math.max(a, r.overall || 0), 0) });
+        aimBest: ((await get("aim/" + s.user.id)) || {}).best || 0 });
     }
     if (p === "/api/aimtest" && req.method === "GET") {
       const s = await getSession(req);
       if (!s) return json({ error: "unauthorized" }, 401);
       const h = (await get("aim/" + s.user.id)) || { results: [] };
-      const best = h.results.reduce((a, r) => Math.max(a, r.overall || 0), 0);
+      const best = h.best || 0;
       return json({ best, history: h.results });
     }
     if (p === "/api/aimtest" && req.method === "POST") {
@@ -251,8 +251,9 @@ export default async (req) => {
       const h = (await get("aim/" + s.user.id)) || { results: [] };
       h.results.push({ ts: Date.now(), overall, skills });
       h.results = h.results.slice(-30);
+      h.best = Math.max(h.best || 0, overall);
       await set("aim/" + s.user.id, h);
-      const best = h.results.reduce((a, r) => Math.max(a, r.overall || 0), 0);
+      const best = h.best;
       const dy = dayOfYear();
       const weak = {};
       for (const k in skills) { if (skills[k] < 50) { const sg = aimSuggestion(k, dy); if (sg) weak[k] = sg; } }

@@ -1,6 +1,6 @@
 // Sense by Shafiq - Vercel edge function (all /api/* routes) with Upstash Redis REST storage
 import { match as matchDevice, list as listModels } from "../devices.js";
-import { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor } from "../content.js";
+import { TRAININGS, TIPS, DEFAULT_LAYOUTS, dailyFor, LAYOUTS_V2 } from "../content.js";
 
 const UPURL = process.env.UPSTASH_REDIS_REST_URL;
 const UPTOK = process.env.UPSTASH_REDIS_REST_TOKEN;

@@ -14,11 +14,12 @@ function cairoToday() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(new Date());
 }
 const WHEEL_PRIZES = [
-  { id: "d3", w: 33, label: "اشتراك هدية 3 أيام 🎁", days: 3 },
-  { id: "w1", w: 22, label: "اشتراك هدية أسبوع 🎁", days: 7 },
-  { id: "none", w: 25, label: "حظ أوفر 🍀" },
-  { id: "gems", w: 14, label: "100 جوهرة 💎" },
-  { id: "drop", w: 6, label: "دروب 1$ 💵" }
+  { id: "d1", w: 32, label: "اشتراك هدية يوم واحد 🎁", days: 1 },
+  { id: "none", w: 26, label: "حظ أوفر 🍀" },
+  { id: "d3", w: 18, label: "اشتراك هدية 3 أيام 🎁", days: 3 },
+  { id: "w1", w: 12, label: "اشتراك هدية أسبوع 🎁", days: 7 },
+  { id: "gems", w: 8, label: "100 جوهرة 💎" },
+  { id: "drop", w: 4, label: "دروب 1$ 💵" }
 ];
 function wheelRoll() {
   let r = Math.random() * 100;

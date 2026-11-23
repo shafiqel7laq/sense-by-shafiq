@@ -142,7 +142,7 @@ function show(id){
   document.getElementById(id).classList.remove('hidden');
 }
 async function doLogin(){
-  const u=document.getElementById('u').value.trim(), p=document.getElementById('p').value;
+  const u=document.getElementById('u').value.trim(), p=document.getElementById('p').value.trim();
   document.getElementById('loginErr').textContent='';
   const r = await api('/api/login',{method:'POST',body:JSON.stringify({username:u,password:p})});
   if(r.status!==200){ document.getElementById('loginErr').textContent='بيانات الدخول غلط، تأكد وحاول تاني'; return; }

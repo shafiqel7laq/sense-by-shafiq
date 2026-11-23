@@ -27,6 +27,16 @@ function eq(a, b) {
 const newToken = () => toHex(crypto.getRandomValues(new Uint8Array(24)));
 const rid = () => toHex(crypto.getRandomValues(new Uint8Array(8)));
 const rand16 = () => toHex(crypto.getRandomValues(new Uint8Array(16)));
+const normPw = (s) => String(s ?? "").trim()
+  .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+  .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
+async function pwMatch(pw, storedHash) {
+  const cands = [normPw(pw)];
+  const raw = String(pw ?? "");
+  if (!cands.includes(raw)) cands.push(raw);
+  for (const c of cands) { if (eq(await hashPassword(c, storedHash.salt), storedHash.hash)) return true; }
+  return false;
+}
 
 async function cmd(...args) {
   const r = await fetch(UPURL, { method: "POST", headers: { authorization: "Bearer " + UPTOK, "content-type": "application/json" }, body: JSON.stringify(args) });
@@ -94,7 +104,7 @@ export default async (req) => {
     if (p === "/api/login" && req.method === "POST") {
       const { username, password } = await req.json();
       const u = await findByName(String(username || ""));
-      if (!u || !eq(await hashPassword(String(password ?? ""), u.salt), u.hash)) return json({ error: "bad_credentials" }, 401);
+      if (!u || !(await pwMatch(password, u))) return json({ error: "bad_credentials" }, 401);
       const token = newToken();
       await set("sessions/" + token, { userId: u.id, exp: Date.now() + 30 * 86400000 });
       return json({ token, user: publicUser(u) });
@@ -124,7 +134,7 @@ export default async (req) => {
     }
     if (p === "/api/admin/login" && req.method === "POST") {
       const { password } = await req.json();
-      if (!eq(String(password ?? ""), ADMIN_PASSWORD)) return json({ error: "bad_credentials" }, 401);
+      if (!eq(normPw(password), ADMIN_PASSWORD)) return json({ error: "bad_credentials" }, 401);
       const token = newToken();
       await set("adminsessions/" + token, { exp: Date.now() + 12 * 3600000 });
       return json({ token });
@@ -159,12 +169,13 @@ export default async (req) => {
         const { username, password, duration } = await req.json();
         const uname = String(username || "").trim();
         if (uname.length < 3) return json({ error: "username_too_short" }, 400);
-        if (!password || String(password).length < 4) return json({ error: "password_too_short" }, 400);
+        const npw = normPw(password);
+        if (npw.length < 4) return json({ error: "password_too_short" }, 400);
         if (await findByName(uname)) return json({ error: "username_taken" }, 409);
         const days = durationDays(duration || "1m");
         if (!days) return json({ error: "bad_duration" }, 400);
         const salt = rand16();
-        const u = { id: rid(), username: uname, salt, hash: await hashPassword(String(password), salt), plan: duration, createdAt: Date.now(), expiresAt: Date.now() + days * 86400000, status: "active" };
+        const u = { id: rid(), username: uname, salt, hash: await hashPassword(npw, salt), plan: duration, createdAt: Date.now(), expiresAt: Date.now() + days * 86400000, status: "active" };
         await putUser(u);
         return json({ user: publicUser(u) }, 201);
       }
@@ -191,8 +202,9 @@ export default async (req) => {
         }
         if (req.method === "POST" && action === "password") {
           const { password } = await req.json();
-          if (!password || String(password).length < 4) return json({ error: "password_too_short" }, 400);
-          u.salt = rand16(); u.hash = await hashPassword(String(password), u.salt);
+          const npw2 = normPw(password);
+          if (npw2.length < 4) return json({ error: "password_too_short" }, 400);
+          u.salt = rand16(); u.hash = await hashPassword(npw2, u.salt);
           await putUser(u);
           return json({ user: publicUser(u) });
         }

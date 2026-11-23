@@ -99,7 +99,7 @@ async function adminLogin(){
 }
 async function addUser(){
   document.getElementById('addErr').textContent='';
-  const body = { username: document.getElementById('nu').value, password: document.getElementById('np').value, duration: document.getElementById('nd').value };
+  const body = { username: document.getElementById('nu').value.trim(), password: document.getElementById('np').value.trim(), duration: document.getElementById('nd').value };
   const r = await api('/api/admin/users',{method:'POST',body:JSON.stringify(body)});
   if(r.status===409){ document.getElementById('addErr').textContent='اسم المستخدم ده موجود قبل كده'; return; }
   if(r.status!==201){ document.getElementById('addErr').textContent='تأكد من البيانات (اسم 3 حروف على الأقل، سر 4 على الأقل)'; return; }

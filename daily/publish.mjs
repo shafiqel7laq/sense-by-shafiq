@@ -3,7 +3,7 @@ import { match, MODELS, screenPpi, gyroFor } from '/downloads/ff-app/repo/device
 import { dailyFor } from '/downloads/ff-app/repo/content.js';
 import fs from 'fs';
 
-const TOK = fs.readFileSync('/downloads/ff-app/daily/upstash_token', 'utf8').trim();
+const TOK = fs.readFileSync(process.env.TOKFILE || '/home/sandbox/.vault/upstash-sense-shafiq-rest/password', 'utf8').trim();
 const UP = 'https://grown-bear-211824.upstash.io';
 async function cmd(...args) {
   const r = await fetch(UP, { method: 'POST', headers: { authorization: 'Bearer ' + TOK, 'content-type': 'application/json' }, body: JSON.stringify(args) });

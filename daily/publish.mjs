@@ -20,9 +20,9 @@ const clampDpi = (v) => v == null ? null : Math.max(300, Math.min(800, round5(v)
 const rid = () => [...crypto.getRandomValues(new Uint8Array(8))].map(x => x.toString(16).padStart(2, '0')).join('');
 
 const STYLES = [
-  { id: 'headshot', note: 'Ø³ÙØª Ø§ÙÙÙØ§Ø±Ø¯Ù: Ø³ØªØ§ÙÙ ÙÙØ¯Ø´ÙØª Ø³Ø±ÙØ¹ ð¥ Ø§Ø³Ø­Ø¨ ÙÙÙÙ Ø¨Ø¹Ø¯ Ø£ÙÙ Ø·ÙÙØ©', d: { general: 6, redDot: 5, scope2x: 4, scope4x: 2, sniper: 0, freeLook: 3 } },
-  { id: 'balanced', note: 'Ø³ÙØª Ø§ÙÙÙØ§Ø±Ø¯Ù: ÙØªÙØ§Ø²Ù ÙÙÙ Ø§ÙÙØ³Ø§ÙØ§Øª âï¸', d: { general: 0, redDot: 0, scope2x: 0, scope4x: 0, sniper: 0, freeLook: 0 } },
-  { id: 'smooth',   note: 'Ø³ÙØª Ø§ÙÙÙØ§Ø±Ø¯Ù: ÙØ§Ø¹Ù ÙØ«Ø§Ø¨Øª ÙÙØ³Ø¨Ø±Ø§Ù ð§', d: { general: -5, redDot: -4, scope2x: -4, scope4x: -3, sniper: -2, freeLook: -2 } }
+  { id: 'headshot', note: 'سيت النهارده: ستايل هيدشوت سريع 🔥 اسحب لفوق بعد أول طلقة', d: { general: 6, redDot: 5, scope2x: 4, scope4x: 2, sniper: 0, freeLook: 3 } },
+  { id: 'balanced', note: 'سيت النهارده: متوازن لكل المسافات ⚖️', d: { general: 0, redDot: 0, scope2x: 0, scope4x: 0, sniper: 0, freeLook: 0 } },
+  { id: 'smooth',   note: 'سيت النهارده: ناعم وثابت للسبراي 🧊', d: { general: -5, redDot: -4, scope2x: -4, scope4x: -3, sniper: -2, freeLook: -2 } }
 ];
 const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
 const style = STYLES[dayOfYear % 3];
@@ -55,7 +55,7 @@ for (const name of targets) {
   if (best && best.avg >= 4) {
     const arr = (await getJ('sets/' + name)) || [];
     const st = best.setId === 'base' ? { sens: base.sens, dpi: base.dpi } : arr.find(x => x.id === best.setId);
-    if (st) { baseSens = st.sens; baseDpi = st.dpi; src = 'rated ' + best.avg + 'â'; }
+    if (st) { baseSens = st.sens; baseDpi = st.dpi; src = 'rated ' + best.avg + '★'; }
   }
   const j = src === 'auto' ? 1 : 0.4; // smaller variation around proven sets
   const d = style.d;
@@ -72,18 +72,18 @@ for (const name of targets) {
   let note = style.note;
   if (dpi != null) {
     const ppi = m ? screenPpi(m) : null;
-    note += ' â DPI ' + dpi + (ppi ? ' ÙØ­Ø³ÙØ¨ ÙÙ Ø´Ø§Ø´Ø© ÙÙØ¨Ø§ÙÙÙ (' + m.scr[0] + ' Ø¨ÙØµØ©Ø ~' + ppi + ' Ø¨ÙØ³Ù/Ø¨ÙØµØ©)' : ' ÙØªØ¸Ø¨Ø· ÙÙÙØ¨Ø§ÙÙÙ') + ' ÙÙØªÙØ§Ø²Ù ÙØ¹ Ø­Ø³Ø§Ø³ÙØ© Ø§ÙØ³ÙØª.';
+    note += ' — DPI ' + dpi + (ppi ? ' محسوب من شاشة موبايلك (' + m.scr[0] + ' بوصة، ~' + ppi + ' بكسل/بوصة)' : ' متظبط لموبايلك') + ' ومتوازن مع حساسية السيت.';
   }
   const gyro = gyroFor(m || { ram: 4 }, sens.general);
   const arr = (await getJ('sets/' + name)) || [];
-  const item = { id: rid(), name: 'Ø³ÙØª ' + dateTag, note, sens, dpi, gyro, updatedAt: now };
+  const item = { id: rid(), name: 'سيت ' + dateTag, note, sens, dpi, gyro, updatedAt: now };
   const sameDay = arr.findIndex(x => x.name === item.name);
   if (sameDay >= 0) arr[sameDay] = item; else arr.push(item); // re-run same day replaces, never duplicates
   while (arr.length > 6) arr.shift();
   await setJ('sets/' + name, arr);
   report.push(name + ' [' + src + '] dpi=' + dpi);
 }
-// ÙØ­ØªÙÙ Ø§ÙÙÙÙ: ØªÙØ±ÙÙ + ÙØµÙØ­Ø© (Ø¨ÙÙØ³ ØªØ§Ø±ÙØ® Ø§ÙØ³ÙØª)
+// محتوى اليوم: تمرين + نصيحة (بنفس تاريخ السيت)
 const dc = dailyFor(dayOfYear);
 await setJ('meta/daily', { date: dateTag, training: dc.training, tip: dc.tip });
 console.log(JSON.stringify({ style: style.id, dateTag, training: dc.training.t, count: report.length, models: report }));
